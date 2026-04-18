@@ -72,7 +72,7 @@ export default function NewAudit() {
       setLoadingStep("upload");
       toast.loading("Uploading dataset...");
       
-      const res = await fetch("/public/demo-datasets/hiring_biased.csv");
+      const res = await fetch("/demo-datasets/hiring_biased.csv");
       if (!res.ok) {
         throw new Error("Failed to load demo dataset");
       }
@@ -108,17 +108,9 @@ export default function NewAudit() {
 
   useEffect(() => {
     if (isDemo) {
-      runDemoAnalysis()
+      void loadDemoAndAnalyze()
     }
   }, [isDemo])
-
-  async function runDemoAnalysis() {
-    const BASE_URL = import.meta.env.VITE_ANALYZER_BASE_URL || 'https://cfisshy-ai.onrender.com'
-    const response = await fetch(BASE_URL + '/analyze', {
-      method: 'POST',
-      // use the hiring_biased demo dataset
-    })
-  }
 
   return (
     <div className="space-y-4">
