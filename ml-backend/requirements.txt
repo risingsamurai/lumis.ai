@@ -5,3 +5,5 @@ numpy
 scikit-learn
 aif360
 python-multipart
+shap
+httpx

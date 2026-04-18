@@ -3,3 +3,11 @@ dist/
 .env
 pnpm.exe
 *.tsbuildinfo
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+.Python
+venv/
+.venv/
