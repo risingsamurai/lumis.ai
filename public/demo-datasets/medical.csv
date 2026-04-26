@@ -1,7 +1,0 @@
-gender,race,age,bmi,risk_score,zipcode,treatment_approved
-male,white,54,29,0.72,10014,1
-female,white,56,30,0.7,10016,1
-female,black,59,32,0.74,10460,0
-male,black,58,31,0.73,10461,1
-female,latina,52,30,0.69,11374,0
-male,latino,53,29,0.7,11375,1

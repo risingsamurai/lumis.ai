@@ -1,7 +1,0 @@
-gender,race,age,income,credit_score,zipcode,loan_approved
-male,white,38,98000,730,10018,1
-female,white,35,91000,710,10019,1
-female,black,41,88000,680,10458,0
-male,black,39,87000,690,10459,1
-female,latina,32,76000,660,11372,0
-male,latino,34,78000,675,11373,1
