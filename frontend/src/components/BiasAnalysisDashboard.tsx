@@ -1,10 +1,10 @@
 import { useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
-import { Download } from "lucide-react";
+import { Download, Target, ShieldCheck } from "lucide-react";
 import { useAnalysis } from "../hooks/useAnalysis";
 import { AnalysisResult, MitigationResult } from "../services/api";
-import { generateMitigationExplanation } from "../services/geminiReport";
+import { generateMitigationExplanation, cleanFeatureName } from "../services/geminiReport";
 
 export function BiasAnalysisDashboard() {
   const { state, loadFile, setConfig, runAnalysis, runMitigation, reset, loadDemoDataset, setEnableSampling } = useAnalysis();
@@ -413,11 +413,14 @@ function BiasReport({
         <button onClick={onReset} className="text-gray-500 hover:text-gray-300 text-sm flex items-center gap-1">
           ← New Analysis
         </button>
-        <div className="flex items-center gap-4">
-          <div className="text-gray-600 text-xs">
-            {result.numRows} rows · {result.numColumns} columns ·
-            Predicting: <span className="text-gray-400">{result.targetColumn}</span> ·
-            Protected: <span className="text-gray-400">{result.sensitiveAttribute}</span>
+        <div className="flex items-center gap-2">
+          {/* Live Audit Badge */}
+          <div className="flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-950/40 px-3 py-1">
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+            </span>
+            <span className="text-xs font-medium text-emerald-400 tracking-wide">Live Audit Active</span>
           </div>
           <button
             onClick={() => setShowSettings(true)}
@@ -426,6 +429,35 @@ function BiasReport({
           >
             ⚙️
           </button>
+        </div>
+      </div>
+
+      {/* Audit Identity Strip — HUD style */}
+      <div className="grid grid-cols-2 gap-4">
+        {/* Predicting Card — blue accent */}
+        <div className="flex flex-col justify-between rounded-2xl border border-slate-800 border-l-4 border-l-blue-500 bg-slate-900/50 px-5 py-4 backdrop-blur-sm min-h-[88px]">
+          <div className="flex items-center gap-1.5 mb-2">
+            <Target className="w-3 h-3 text-blue-400 shrink-0" />
+            <span className="text-[10px] uppercase tracking-widest text-slate-400 font-medium">
+              Predicting
+            </span>
+          </div>
+          <p className="text-lg font-bold text-white truncate leading-tight">
+            {result.targetColumn}
+          </p>
+        </div>
+
+        {/* Protected Attribute Card — purple accent */}
+        <div className="flex flex-col justify-between rounded-2xl border border-slate-800 border-l-4 border-l-purple-500 bg-slate-900/50 px-5 py-4 backdrop-blur-sm min-h-[88px]">
+          <div className="flex items-center gap-1.5 mb-2">
+            <ShieldCheck className="w-3 h-3 text-purple-400 shrink-0" />
+            <span className="text-[10px] uppercase tracking-widest text-slate-400 font-medium">
+              Protected Attribute
+            </span>
+          </div>
+          <p className="text-lg font-bold text-white truncate leading-tight">
+            {result.sensitiveAttribute}
+          </p>
         </div>
       </div>
 
@@ -452,29 +484,38 @@ function BiasReport({
         </div>
       </motion.div>
 
-      {/* Metrics Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {metrics.map((m, i) => (
+      {/* Metrics Grid — core legal metrics only (Equal Opportunity & Average Odds kept in state) */}
+      <div className="grid grid-cols-2 gap-4">
+        {metrics.slice(0, 2).map((m, i) => (
           <motion.div
             key={m.label}
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.08 }}
-            className={`rounded-xl border p-4 ${m.pass
+            className={`rounded-2xl border p-6 ${
+              m.pass
                 ? "bg-emerald-950/30 border-emerald-800/30"
                 : "bg-red-950/30 border-red-800/30"
-              }`}
+            }`}
           >
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-gray-400 text-xs">{m.label}</span>
-              <span className={`text-xs font-semibold ${m.pass ? "text-emerald-400" : "text-red-400"}`}>
-                {m.pass ? "PASS" : "FAIL"}
+            <div className="flex items-start justify-between mb-4">
+              <span className="text-gray-400 text-xs uppercase tracking-widest leading-tight">
+                {m.label}
+              </span>
+              <span
+                className={`rounded-full px-3 py-1 text-xs font-bold tracking-wide ${
+                  m.pass
+                    ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                    : "bg-red-500/20 text-red-300 border border-red-500/40"
+                }`}
+              >
+                {m.pass ? "✓ PASS" : "✗ FAIL"}
               </span>
             </div>
-            <div className={`text-2xl font-bold ${m.pass ? "text-emerald-300" : "text-red-300"}`}>
+            <div className={`text-5xl font-bold tracking-tight ${m.pass ? "text-emerald-300" : "text-red-300"}`}>
               {m.value}
             </div>
-            <div className="text-gray-600 text-xs mt-1">Threshold: {m.threshold}</div>
+            <div className="text-gray-600 text-xs mt-3">Threshold: {m.threshold}</div>
           </motion.div>
         ))}
       </div>
@@ -516,7 +557,9 @@ function BiasReport({
               <div key={i}>
                 <div className="flex justify-between items-center mb-1">
                   <div className="flex items-center gap-2">
-                    <span className="text-gray-300 text-sm">{f.name}</span>
+                    <span className="text-gray-300 text-sm font-medium">
+                      {cleanFeatureName(f.name)}
+                    </span>
                     {f.isProxy && (
                       <span className="text-xs bg-amber-500/20 text-amber-400 
                                        border border-amber-500/30 rounded-full px-2 py-0.5">
@@ -535,7 +578,7 @@ function BiasReport({
                   />
                 </div>
                 {f.explanation && (
-                  <p className="text-gray-600 text-xs mt-0.5">{f.explanation}</p>
+                  <p className="text-gray-500 text-xs mt-1 leading-relaxed">{f.explanation}</p>
                 )}
               </div>
             ))}
@@ -585,8 +628,24 @@ function BiasReport({
                   </button>
                 )}
               </div>
-              <div className="text-gray-300 text-sm leading-relaxed whitespace-pre-line">
-                {aiExplanation}
+              <div className="space-y-2">
+                {aiExplanation.split('\n').map((line, i) => {
+                  if (line.trim() === '') return <div key={i} className="h-1" />;
+                  // Render lines with inline **bold** support
+                  const parts = line.split(/\*\*(.*?)\*\*/g);
+                  const isNumbered = /^\d\./.test(line.trim());
+                  return (
+                    <p key={i} className={`text-sm leading-relaxed ${
+                      isNumbered ? 'text-gray-300 pl-3' : 'text-gray-300'
+                    }`}>
+                      {parts.map((part, j) =>
+                        j % 2 === 1
+                          ? <strong key={j} className="text-white font-semibold">{part}</strong>
+                          : part
+                      )}
+                    </p>
+                  );
+                })}
               </div>
             </motion.div>
           )}

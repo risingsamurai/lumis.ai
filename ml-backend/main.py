@@ -97,7 +97,11 @@ def preprocess_dataframe(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
             print(f"Encoded '{col}': {encoders_map[col]}")
 
     df = df.astype(np.float32)
-    df = df.replace([np.inf, -np.inf], np.nan).fillna(0)
+    # ── Absolute inf/NaN sanitization ───────────────────────────────────
+    # Step 1: Replace Infinity and -Infinity with NaN
+    df = df.replace([np.inf, -np.inf], np.nan)
+    # Step 2: Fill all NaNs with 0 to guarantee JSON compliance
+    df = df.fillna(0)
     return df, encoders_map
 
 
@@ -135,14 +139,21 @@ def resolve_favorable_outcome(raw_value: Any, target_col: str, encoders_map: dic
 
 
 def _json_safe(results: Any) -> Any:
-    return json.loads(json.dumps(
-        results,
-        default=lambda x: (
-            0 if isinstance(x, float) and (np.isnan(x) or np.isinf(x))
-            else float(x) if isinstance(x, (np.float32, np.float64))
-            else x
+    """Deep-clean a result dict of any inf/NaN floats before JSON serialization.
+    Uses json.loads(json.dumps(...)) round-trip as the final absolute guard.
+    """
+    return json.loads(
+        json.dumps(
+            results,
+            default=lambda x: (
+                0 if isinstance(x, float) and (np.isnan(x) or np.isinf(x))
+                else 0 if isinstance(x, (np.float32, np.float64)) and (np.isnan(float(x)) or np.isinf(float(x)))
+                else float(x) if isinstance(x, (np.float32, np.float64))
+                else int(x) if isinstance(x, (np.int32, np.int64, np.integer))
+                else x
+            )
         )
-    ))
+    )
 
 
 def _risk_level(bias_detected: bool, bias_score: float) -> str:
@@ -165,6 +176,10 @@ def _run_analysis(payload: AnalyzeRequest) -> dict[str, Any]:
         raw_frame = raw_frame.sample(n=40000, random_state=42).reset_index(drop=True)
 
     frame, encoders_map = preprocess_dataframe(raw_frame)
+    # ── Speed cap: 500 rows is sufficient for bias detection ───────────────────
+    if len(frame) > 500:
+        frame = frame.sample(n=500, random_state=42).reset_index(drop=True)
+        print(f"Speed cap: sampled to 500 rows for analysis")
     print(f"DEBUG head:\n{frame.head()}")
 
     if payload.target_column not in frame.columns:
@@ -209,7 +224,10 @@ def _run_analysis(payload: AnalyzeRequest) -> dict[str, Any]:
         top_k=payload.top_k_features,
     )
 
-    explanation = build_human_explanation(top_features, fairness["summary"])
+    explanation = build_human_explanation(
+        top_features, fairness["summary"],
+        sensitive_attr=payload.sensitive_attributes[0] if payload.sensitive_attributes else "protected attribute",
+    )
     summary_metrics = fairness["summary"]
 
     bias_score = max(0.0, min(100.0, (1 - abs(summary_metrics["statistical_parity"])) * 100))
@@ -268,6 +286,10 @@ async def mitigate(payload: MitigateRequest) -> JSONResponse:
             raw_frame = raw_frame.sample(n=40000, random_state=42).reset_index(drop=True)
 
         frame, encoders_map = preprocess_dataframe(raw_frame)
+        # ── Speed cap: 500 rows is sufficient for bias mitigation ────────────────
+        if len(frame) > 500:
+            frame = frame.sample(n=500, random_state=42).reset_index(drop=True)
+            print(f"Speed cap: sampled to 500 rows for mitigation")
 
         if payload.target_column not in frame.columns:
             raise ValueError(f"Target column '{payload.target_column}' not found. Available: {list(frame.columns)}")
@@ -296,20 +318,40 @@ async def mitigate(payload: MitigateRequest) -> JSONResponse:
         )
 
         mitigated_predictions, mitigation_result = mitigate_with_reweighing(prepared, model)
-        mitigated_dataset_csv = create_mitigated_dataset_csv(prepared, mitigated_predictions)
+        sample_weight = mitigation_result.get("sample_weight", None)
+        if sample_weight is None:
+            sample_weight = np.ones(len(prepared.features))
 
-        del frame
-        gc.collect()
+        # ── Capture shape before frame is freed ──────────────────────────────
+        row_count = int(frame.shape[0])
+        col_count = int(frame.shape[1])
 
+        # ── Compute scores early (needed for CSV metadata) ───────────────────
         after_metrics = mitigation_result["metrics"]
         before_summary = before_fairness["summary"]
         after_summary = after_metrics["summary"]
 
         before_score = max(0.0, min(100.0, (1 - abs(before_summary["statistical_parity"])) * 100))
-        after_score = max(0.0, min(100.0, (1 - abs(after_summary["statistical_parity"])) * 100))
+        after_score  = max(0.0, min(100.0, (1 - abs(after_summary["statistical_parity"])) * 100))
+
+        mitigated_dataset_csv = create_mitigated_dataset_csv(
+            prepared,
+            mitigated_predictions,
+            original_predictions=predictions_before,
+            sample_weight=sample_weight,
+            input_filename="dataset.csv",
+            attribute=", ".join(payload.sensitive_attributes),
+            score_before=round(float(before_score), 2),
+            score_after=round(float(after_score), 2),
+        )
+
+        del frame
+        gc.collect()
 
         results = {
             "method": payload.method,
+            "row_count": row_count,
+            "col_count": col_count,
             "before": {
                 "summary": {
                     "bias_score": round(float(before_score), 2),

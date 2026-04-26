@@ -187,7 +187,7 @@ export function normalizeResponse(
 
   const topFeatures = rawFeatures.map((f) => ({
     name: f.feature_name ?? f.name ?? f.feature ?? "Unknown",
-    impactPercent: Math.round((f.impact_percentage ?? f.impact ?? f.shap_value ?? 0) * 10) / 10,
+    impactPercent: Math.round((f.impact_percentage ?? f.impact_percentage ?? f.impact ?? f.shap_value ?? 0) * 10) / 10,
     explanation: f.explanation ?? f.description ?? generateFeatureExplanation(
       f.feature_name ?? f.name ?? "", request.sensitiveAttributes?.[0] ?? "unknown"
     ),
@@ -195,8 +195,8 @@ export function normalizeResponse(
   }));
 
   return {
-    numRows: raw.num_rows ?? raw.rows ?? raw.dataset_size ?? raw.numRows ?? 0,
-    numColumns: raw.num_columns ?? raw.columns ?? raw.numColumns ?? 0,
+    numRows: raw.summary?.rows_analyzed ?? raw.num_rows ?? raw.rows ?? raw.dataset_size ?? raw.numRows ?? raw.row_count ?? 0,
+    numColumns: raw.summary?.columns_analyzed ?? raw.num_columns ?? raw.columns ?? raw.numColumns ?? raw.col_count ?? 0,
     targetColumn: request.targetColumn ?? "unknown",
     sensitiveAttribute: request.sensitiveAttributes?.[0] ?? "unknown",
     favorableOutcome: request.labelValue ?? "unknown",
@@ -283,7 +283,7 @@ function isProxyFeature(feature: string, attribute: string): boolean {
 
 async function callAPI(endpoint: string, body: object): Promise<any> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 90000);
+  const timeout = setTimeout(() => controller.abort(), 180000);
 
   try {
     const response = await fetch(`${API_BASE}${endpoint}`, {
@@ -357,10 +357,17 @@ export async function mitigateDataset(request: AnalyzeRequest): Promise<Mitigati
   const before = normalizeResponse(beforeRaw, request);
   const after = normalizeResponse(afterRaw, request);
 
+  // Inject row/col counts from top-level mitigate response into 'after'
+  const afterWithCounts = {
+    ...after,
+    numRows: afterRaw.row_count ?? after.numRows,
+    numColumns: afterRaw.col_count ?? after.numColumns,
+  };
+
   return {
     before,
-    after,
-    improvement: after.fairnessScore - before.fairnessScore,
+    after: afterWithCounts,
+    improvement: afterWithCounts.fairnessScore - before.fairnessScore,
     method: "Reweighing Algorithm (AIF360)",
     mitigated_dataset_csv: afterRaw.mitigated_dataset_csv,
     mitigated_dataset_base64: afterRaw.mitigated_dataset_base64,

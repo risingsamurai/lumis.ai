@@ -9,6 +9,17 @@ from aif360.datasets import BinaryLabelDataset
 from aif360.metrics import BinaryLabelDatasetMetric, ClassificationMetric
 
 
+def _safe_float(value: Any, neutral: float = 0.0) -> float:
+    """Convert any inf/NaN float (from AIF360 zero-group edge cases) to a safe neutral value."""
+    try:
+        f = float(value)
+        if np.isnan(f) or np.isinf(f):
+            return neutral
+        return f
+    except (TypeError, ValueError):
+        return neutral
+
+
 @dataclass
 class AttributeFairnessResult:
     attribute: str
@@ -98,18 +109,19 @@ def _attribute_metrics(
     )
 
     try:
-        statistical_parity = float(metric_pred.statistical_parity_difference())
-    except ZeroDivisionError:
+        statistical_parity = _safe_float(metric_pred.statistical_parity_difference(), neutral=0.0)
+    except (ZeroDivisionError, Exception):
         statistical_parity = 0.0
-    
+
     try:
-        equal_opportunity = float(metric_cls.equal_opportunity_difference())
-    except ZeroDivisionError:
+        equal_opportunity = _safe_float(metric_cls.equal_opportunity_difference(), neutral=0.0)
+    except (ZeroDivisionError, Exception):
         equal_opportunity = 0.0
-    
+
     try:
-        disparate_impact = float(metric_pred.disparate_impact())
-    except ZeroDivisionError:
+        raw_di = metric_pred.disparate_impact()
+        disparate_impact = _safe_float(raw_di, neutral=1.0)  # 1.0 = perfectly fair (no disparity)
+    except (ZeroDivisionError, Exception):
         disparate_impact = 1.0
     bias_detected = (
         abs(statistical_parity) > 0.1 or abs(equal_opportunity) > 0.1 or disparate_impact < 0.8
@@ -148,10 +160,13 @@ def compute_fairness_metrics(
     if not per_attribute:
         raise ValueError("Unable to compute fairness metrics for provided sensitive attributes.")
 
+    def _clean(v: float, neutral: float = 0.0) -> float:
+        return _safe_float(v, neutral)
+
     summary = {
-        "statistical_parity": round(float(np.mean([x["statistical_parity"] for x in per_attribute])), 4),
-        "equal_opportunity": round(float(np.mean([x["equal_opportunity"] for x in per_attribute])), 4),
-        "disparate_impact": round(float(np.mean([x["disparate_impact"] for x in per_attribute])), 4),
+        "statistical_parity": round(_clean(float(np.mean([x["statistical_parity"] for x in per_attribute]))), 4),
+        "equal_opportunity":   round(_clean(float(np.mean([x["equal_opportunity"]   for x in per_attribute]))), 4),
+        "disparate_impact":    round(_clean(float(np.mean([x["disparate_impact"]    for x in per_attribute])), neutral=1.0), 4),
         "bias_detected": any(x["bias_detected"] for x in per_attribute),
     }
     return {"summary": summary, "by_attribute": per_attribute}

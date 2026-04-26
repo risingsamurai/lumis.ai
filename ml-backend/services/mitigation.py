@@ -102,16 +102,46 @@ def mitigate_with_reweighing(
         predictions=mitigated_predictions,
         sensitive_attributes=prepared.sensitive_attributes,
     )
-    return mitigated_predictions, {"metrics": metrics_after, "privileged_map": privileged_map}
+    return mitigated_predictions, {"metrics": metrics_after, "privileged_map": privileged_map, "sample_weight": sample_weight}
 
 
 def create_mitigated_dataset_csv(
-    prepared: PreparedDataset, mitigated_predictions: np.ndarray
+    prepared: PreparedDataset,
+    mitigated_predictions: np.ndarray,
+    original_predictions: np.ndarray,
+    sample_weight: np.ndarray,
+    input_filename: str = "dataset",
+    attribute: str = "unknown",
+    score_before: float = 0.0,
+    score_after: float = 0.0,
 ) -> str:
-    """Create a CSV string of the original dataframe with mitigated predictions."""
-    mitigated_frame = prepared.frame.copy()
-    mitigated_frame["mitigated_prediction"] = mitigated_predictions
+    """Create a Detailed Audit Log CSV with original + mitigated predictions,
+    fairness weights, and a professional metadata header."""
+
+    # ── Build audit dataframe ────────────────────────────────────────────────
+    # Column order: [Original Features] → [original_prediction] → [fairness_weight]
+    #              → [mitigated_prediction] → [was_corrected]
+    audit_df = prepared.frame.copy()
+    audit_df["original_prediction"]   = original_predictions.astype(int)
+    audit_df["fairness_weight"]        = np.round(sample_weight, 6)
+    audit_df["mitigated_prediction"]   = mitigated_predictions.astype(int)
+    audit_df["was_corrected"]          = (
+        (original_predictions != mitigated_predictions).astype(int)
+    )
+
+    # ── Metadata header ──────────────────────────────────────────────────────
+    header_lines = [
+        "# Lumis.AI Audit Report",
+        f"# Dataset: {input_filename}",
+        f"# Protected Attribute: {attribute}",
+        f"# Fairness Score Improved from {round(score_before, 2)} to {round(score_after, 2)}",
+        "#",
+    ]
+    metadata_block = "\n".join(header_lines) + "\n"
+
+    # ── Serialize to CSV ─────────────────────────────────────────────────────
     csv_buffer = io.StringIO()
-    mitigated_frame.to_csv(csv_buffer, index=False)
-    # Ensure JSON compatibility by encoding/decoding UTF-8
-    return csv_buffer.getvalue().encode('utf-8').decode('utf-8')
+    audit_df.to_csv(csv_buffer, index=False)
+    csv_body = csv_buffer.getvalue()
+
+    return (metadata_block + csv_body).encode("utf-8").decode("utf-8")
