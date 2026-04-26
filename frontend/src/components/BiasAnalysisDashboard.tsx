@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
+import { Download } from "lucide-react";
 import { useAnalysis } from "../hooks/useAnalysis";
 import { AnalysisResult, MitigationResult } from "../services/api";
 import { generateMitigationExplanation } from "../services/geminiReport";
@@ -282,6 +283,27 @@ function BiasReport({
 }) {
   const [aiExplanation, setAiExplanation] = useState<string | null>(null);
   const [loadingExplanation, setLoadingExplanation] = useState(false);
+
+  const handleDownloadDataset = () => {
+    console.log("Downloading data:", mitigation);
+    const csvData = mitigation?.mitigated_dataset_csv || 
+                    (mitigation?.mitigated_dataset_base64 ? atob(mitigation.mitigated_dataset_base64) : null);
+
+    if (!csvData) {
+      console.error("❌ Still no data! Payload received:", mitigation);
+      alert("Data sync error: The backend is not sending the CSV string.");
+      return;
+    }
+
+    const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'Lumis_Audited_Data.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   const regenerateExplanation = () => {
     if (!mitigation) return;
@@ -583,6 +605,17 @@ function BiasReport({
                 +{mitigation.improvement} point improvement
               </span>
               <span className="text-gray-500 text-xs ml-2">in overall fairness score</span>
+            </div>
+            
+            <div className="mt-8 flex flex-col items-center gap-4">
+              <button 
+                onClick={handleDownloadDataset}
+                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded-full transition-all hover:scale-105 shadow-xl"
+              >
+                <Download className="w-5 h-5" />
+                Download Mitigated Dataset (.csv)
+              </button>
+              <p className="text-xs text-slate-400 italic">This file contains reweighed data for fair model training.</p>
             </div>
           </div>
 

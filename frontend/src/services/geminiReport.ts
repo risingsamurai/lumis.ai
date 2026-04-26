@@ -13,6 +13,11 @@ export interface BiasReportInput {
 }
 
 export async function generateAuditNarrative(input: BiasReportInput): Promise<string> {
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  if (!apiKey) {
+    return "Gemini API key not configured. Please check your .env file in the frontend folder.";
+  }
+
   const model = genAI.getGenerativeModel({ model: "gemini-pro" });
 
   const prompt = `You are an AI fairness auditor. Write a concise, professional 3-paragraph audit narrative for the following bias analysis results. Be specific, use the numbers provided, and end with 2 actionable recommendations. Keep it under 200 words.
@@ -43,6 +48,11 @@ export interface MitigationExplanationInput {
 }
 
 export async function generateMitigationExplanation(input: MitigationExplanationInput): Promise<string> {
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  if (!apiKey) {
+    return "Gemini API key not configured. Please check your .env file in the frontend folder.";
+  }
+
   // Handle nulls or empty metrics with safe defaults
   const beforeFairnessScore = input.beforeFairnessScore ?? 0;
   const afterFairnessScore = input.afterFairnessScore ?? 0;

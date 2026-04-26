@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import logging
 import gc
 from typing import Any
@@ -16,7 +17,7 @@ from pydantic import BaseModel, Field
 
 from services.bias_metrics import compute_fairness_metrics
 from services.explainability import build_human_explanation, compute_top_feature_impacts
-from services.mitigation import create_mitigated_dataset_base64, mitigate_with_reweighing
+from services.mitigation import create_mitigated_dataset_csv, mitigate_with_reweighing
 from services.model_handler import (
     decode_csv_base64,
     get_transformed_features,
@@ -215,8 +216,8 @@ async def mitigate(payload: MitigateRequest):
         logger.info("mitigate:reweighing_start")
         mitigated_predictions, mitigation_result = mitigate_with_reweighing(prepared, model)
         
-        # Create mitigated dataset as base64 for download
-        mitigated_dataset_base64 = create_mitigated_dataset_base64(prepared, mitigated_predictions)
+        # Create mitigated dataset as CSV string for download
+        mitigated_dataset_csv = create_mitigated_dataset_csv(prepared, mitigated_predictions)
         
         # Free memory for large datasets
         del frame
@@ -249,7 +250,8 @@ async def mitigate(payload: MitigateRequest):
                 "metrics": after_summary
             },
             "improved": after_score > before_score,
-            "mitigated_dataset_base64": mitigated_dataset_base64,
+            "mitigated_dataset_csv": mitigated_dataset_csv,
+            "mitigated_dataset_base64": base64.b64encode(mitigated_dataset_csv.encode()).decode(),
         }
 
     except Exception as exc:

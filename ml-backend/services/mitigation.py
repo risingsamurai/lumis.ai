@@ -105,13 +105,13 @@ def mitigate_with_reweighing(
     return mitigated_predictions, {"metrics": metrics_after, "privileged_map": privileged_map}
 
 
-def create_mitigated_dataset_base64(
+def create_mitigated_dataset_csv(
     prepared: PreparedDataset, mitigated_predictions: np.ndarray
 ) -> str:
-    """Create a CSV string of the original dataframe with mitigated predictions and encode as base64."""
+    """Create a CSV string of the original dataframe with mitigated predictions."""
     mitigated_frame = prepared.frame.copy()
     mitigated_frame["mitigated_prediction"] = mitigated_predictions
     csv_buffer = io.StringIO()
     mitigated_frame.to_csv(csv_buffer, index=False)
-    csv_str = csv_buffer.getvalue()
-    return base64.b64encode(csv_str.encode()).decode()
+    # Ensure JSON compatibility by encoding/decoding UTF-8
+    return csv_buffer.getvalue().encode('utf-8').decode('utf-8')

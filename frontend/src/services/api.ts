@@ -144,7 +144,8 @@ export interface MitigationResult {
   after: AnalysisResult;
   improvement: number;
   method: string;
-  mitigatedDatasetBase64?: string;
+  mitigated_dataset_csv?: string;
+  mitigated_dataset_base64?: string;
 }
 
 // ─── Normalizer ──────────────────────────────────────────────────────────────
@@ -361,7 +362,8 @@ export async function mitigateDataset(request: AnalyzeRequest): Promise<Mitigati
     after,
     improvement: after.fairnessScore - before.fairnessScore,
     method: "Reweighing Algorithm (AIF360)",
-    mitigatedDatasetBase64: afterRaw.mitigated_dataset_base64,
+    mitigated_dataset_csv: afterRaw.mitigated_dataset_csv,
+    mitigated_dataset_base64: afterRaw.mitigated_dataset_base64,
   };
 }
 
