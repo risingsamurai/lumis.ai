@@ -1,7 +1,6 @@
-import { initializeApp } from "firebase/app";
+import { initializeApp, getApps } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
-import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -16,10 +15,10 @@ const hasFirebaseConfig = Object.values(firebaseConfig).every(
   (value) => typeof value === "string" && value.length > 0
 );
 
-const app = hasFirebaseConfig ? initializeApp(firebaseConfig) : null;
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 
-export const auth = app ? getAuth(app) : null;
-export const db = app ? getFirestore(app) : null;
-export const storage = app ? getStorage(app) : null;
+export const auth = hasFirebaseConfig ? getAuth(app) : null;
+export const db = hasFirebaseConfig ? getFirestore(app) : null;
 export const googleProvider = new GoogleAuthProvider();
-export const firebaseEnabled = hasFirebaseConfig;
+
+export const firebaseEnabled = Boolean(import.meta.env.VITE_FIREBASE_API_KEY);

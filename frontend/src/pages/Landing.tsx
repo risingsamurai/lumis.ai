@@ -6,7 +6,7 @@ import { useRef } from "react";
 import { useAuth } from "../hooks/useAuth";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
-import { firebaseEnabled } from "../services/firebase";
+import { firebaseEnabled } from "../lib/firebase";
 import { BiasAnalysisDashboard } from "../components/BiasAnalysisDashboard";
 
 // ─── Feature card data ────────────────────────────────────────────────────────

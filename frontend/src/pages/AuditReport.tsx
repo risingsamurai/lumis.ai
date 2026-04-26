@@ -281,10 +281,10 @@ export default function AuditReport() {
             </div>
 
             {/* Download Button */}
-            {latestMitigation.mitigatedDatasetBase64 && (
+            {latestMitigation.mitigated_dataset_base64 && (
               <Button
                 className="w-full"
-                onClick={() => downloadMitigatedCSV(latestMitigation.mitigatedDatasetBase64!)}
+                onClick={() => downloadMitigatedCSV(latestMitigation.mitigated_dataset_base64!)}
               >
                 Download Audited Dataset
               </Button>
