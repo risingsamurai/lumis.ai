@@ -59,11 +59,11 @@ def preprocess_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     # 1. Fill missing values immediately
     df = df.fillna(0)
     
-    # 2. Encode all text/object columns to numbers
+    # 2. Encode all text/object columns to numbers using select_dtypes
+    text_columns = df.select_dtypes(exclude=[np.number]).columns
     le = LabelEncoder()
-    for col in df.columns:
-        if df[col].dtype == 'object' or df[col].dtype.name == 'category':
-            df[col] = le.fit_transform(df[col].astype(str))
+    for col in text_columns:
+        df[col] = le.fit_transform(df[col].astype(str))
             
     # 3. Force all values to float64 for math operations
     return df.astype(np.float64)
