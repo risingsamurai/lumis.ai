@@ -23,18 +23,39 @@ def _binary_dataset_for_reweighing(
 ) -> tuple[BinaryLabelDataset, Any]:
     privileged = _privileged_value(prepared.frame, sensitive_attribute, prepared.target_binary)
     rw_frame = prepared.features.copy()
+    # Data is already pre-encoded as numerical, so compare numerically
     rw_frame[sensitive_attribute] = (
-        prepared.frame[sensitive_attribute].astype(str) == str(privileged)
+        prepared.frame[sensitive_attribute].astype(float) == float(privileged)
     ).astype(int)
     rw_frame["label"] = prepared.target_binary.to_numpy()
 
-    dataset = BinaryLabelDataset(
-        favorable_label=1,
-        unfavorable_label=0,
-        df=rw_frame,
-        label_names=["label"],
-        protected_attribute_names=[sensitive_attribute],
-    )
+    # Ensure no NaNs in the dataframe before creating BinaryLabelDataset
+    if rw_frame.isna().any().any():
+        raise ValueError("DataFrame contains NaN values. All values must be numerical and non-NaN.")
+
+    # Log column dtypes for debugging
+    print(f"DEBUG: rw_frame dtypes for attribute '{sensitive_attribute}':")
+    print(rw_frame.dtypes)
+    print(f"DEBUG: rw_frame sample:")
+    print(rw_frame.head())
+    for col in rw_frame.columns:
+        if rw_frame[col].dtype not in [np.float64, np.int64, np.int32, np.float32]:
+            raise ValueError(f"Column '{col}' has non-numerical dtype: {rw_frame[col].dtype}. All columns must be numerical.")
+
+    try:
+        dataset = BinaryLabelDataset(
+            favorable_label=1.0,
+            unfavorable_label=0.0,
+            df=rw_frame,
+            label_names=["label"],
+            protected_attribute_names=[sensitive_attribute],
+        )
+    except Exception as exc:
+        raise ValueError(
+            f"BinaryLabelDataset creation failed for attribute '{sensitive_attribute}'. "
+            f"Column dtypes: {rw_frame.dtypes.to_dict()}. "
+            f"Error: {exc}"
+        ) from exc
     return dataset, privileged
 
 
@@ -43,7 +64,7 @@ def mitigate_with_reweighing(
 ) -> tuple[np.ndarray, dict[str, Any]]:
     # Reweighing in AIF360 is applied per protected attribute.
     sample_weight = np.ones(len(prepared.features), dtype=float)
-    privileged_map: dict[str, str] = {}
+    privileged_map: dict[str, float] = {}
 
     for attribute in prepared.sensitive_attributes:
         dataset, privileged = _binary_dataset_for_reweighing(prepared, attribute)
@@ -51,9 +72,16 @@ def mitigate_with_reweighing(
             unprivileged_groups=[{attribute: 0}],
             privileged_groups=[{attribute: 1}],
         )
-        transformed = rw.fit_transform(dataset)
+        try:
+            transformed = rw.fit_transform(dataset)
+        except Exception as exc:
+            raise ValueError(
+                f"AIF360 Reweighing failed: {exc}. "
+                f"This may be due to non-numerical data in the dataset. "
+                f"Ensure all columns are converted to numerical values before calling this function."
+            ) from exc
         sample_weight = sample_weight * transformed.instance_weights
-        privileged_map[attribute] = str(privileged)
+        privileged_map[attribute] = float(privileged)
 
     try:
         model = clone(trained_model)

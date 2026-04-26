@@ -9,7 +9,7 @@ import { Skeleton } from "../components/ui/Skeleton";
 
 export default function Dashboard() {
   const { latestAnalysis, loading, error } = useAuditStore();
-  const score = latestAnalysis?.summary.bias_score ?? 0;
+  const score = latestAnalysis?.fairnessScore ?? 0;
   const severity = score > 85 ? "fair" : score > 70 ? "minor" : score > 55 ? "moderate" : "high";
 
   if (loading) {
@@ -37,10 +37,10 @@ export default function Dashboard() {
     <div className="space-y-4">
       <div className="grid gap-4 md:grid-cols-4">
         {[
-          ["Bias Score", latestAnalysis.summary.bias_score.toFixed(1)],
-          ["Risk Level", latestAnalysis.summary.risk_level.toUpperCase()],
-          ["Rows", latestAnalysis.summary.rows_analyzed.toString()],
-          ["Bias Detected", latestAnalysis.summary.bias_detected ? "YES" : "NO"]
+          ["Bias Score", latestAnalysis.fairnessScore.toFixed(1)],
+          ["Risk Level", latestAnalysis.biasLevel.toUpperCase()],
+          ["Rows", latestAnalysis.numRows.toString()],
+          ["Bias Detected", latestAnalysis.biasDetected ? "YES" : "NO"]
         ].map(([k, v]) => (
           <motion.div key={k} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
             <Card>
@@ -61,7 +61,7 @@ export default function Dashboard() {
         <div className="mt-4 flex items-center justify-between rounded-xl bg-white/5 p-3">
           <div>
             <p className="font-semibold">Latest Analysis</p>
-            <p className="text-sm text-white/60">Fairness score: {latestAnalysis.summary.bias_score.toFixed(1)}</p>
+            <p className="text-sm text-white/60">Fairness score: {latestAnalysis.fairnessScore.toFixed(1)}</p>
           </div>
           <SeverityBadge severity={severity} />
         </div>

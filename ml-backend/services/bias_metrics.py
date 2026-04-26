@@ -27,7 +27,8 @@ def _pick_privileged_group(
 
 
 def _binary_sensitive(frame: pd.DataFrame, attribute: str, privileged_value: Any) -> pd.Series:
-    return (frame[attribute].astype(str) == str(privileged_value)).astype(int)
+    # Data is already pre-encoded as numerical, so compare numerically
+    return (frame[attribute].astype(float) == float(privileged_value)).astype(int)
 
 
 def _attribute_metrics(
@@ -43,20 +44,46 @@ def _attribute_metrics(
     privileged_value = _pick_privileged_group(work, attribute, target_binary)
     work["sensitive_binary"] = _binary_sensitive(work, attribute, privileged_value)
 
-    true_dataset = BinaryLabelDataset(
-        favorable_label=1,
-        unfavorable_label=0,
-        df=work[["sensitive_binary", "label"]],
-        label_names=["label"],
-        protected_attribute_names=["sensitive_binary"],
-    )
-    pred_dataset = BinaryLabelDataset(
-        favorable_label=1,
-        unfavorable_label=0,
-        df=work[["sensitive_binary", "prediction"]].rename(columns={"prediction": "label"}),
-        label_names=["label"],
-        protected_attribute_names=["sensitive_binary"],
-    )
+    # Log column dtypes for debugging
+    df_cols = work[["sensitive_binary", "label"]]
+    for col in df_cols.columns:
+        if df_cols[col].dtype not in [np.float64, np.int64, np.int32, np.float32]:
+            raise ValueError(f"Column '{col}' has non-numerical dtype: {df_cols[col].dtype}. All columns must be numerical.")
+
+    try:
+        true_dataset = BinaryLabelDataset(
+            favorable_label=1.0,
+            unfavorable_label=0.0,
+            df=df_cols,
+            label_names=["label"],
+            protected_attribute_names=["sensitive_binary"],
+        )
+    except Exception as exc:
+        raise ValueError(
+            f"BinaryLabelDataset creation failed for attribute '{attribute}'. "
+            f"Column dtypes: {df_cols.dtypes.to_dict()}. "
+            f"Error: {exc}"
+        ) from exc
+
+    pred_df = work[["sensitive_binary", "prediction"]].rename(columns={"prediction": "label"})
+    for col in pred_df.columns:
+        if pred_df[col].dtype not in [np.float64, np.int64, np.int32, np.float32]:
+            raise ValueError(f"Column '{col}' has non-numerical dtype: {pred_df[col].dtype}. All columns must be numerical.")
+
+    try:
+        pred_dataset = BinaryLabelDataset(
+            favorable_label=1.0,
+            unfavorable_label=0.0,
+            df=pred_df,
+            label_names=["label"],
+            protected_attribute_names=["sensitive_binary"],
+        )
+    except Exception as exc:
+        raise ValueError(
+            f"BinaryLabelDataset creation failed for predictions (attribute '{attribute}'). "
+            f"Column dtypes: {pred_df.dtypes.to_dict()}. "
+            f"Error: {exc}"
+        ) from exc
 
     metric_pred = BinaryLabelDatasetMetric(
         pred_dataset,

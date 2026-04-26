@@ -47,10 +47,10 @@ export default function NewAudit() {
     setError(null);
     try {
       const response = await analyzeDataset({
-        dataset_base64: toBase64(csvText),
-        target_column: "selected",
-        sensitive_attributes: ["gender"],
-        favorable_outcome: 1,
+        datasetBase64: toBase64(csvText),
+        targetColumn: "selected",
+        sensitiveAttributes: ["gender"],
+        labelValue: 1,
       });
       setAnalysis(response);
       toast.success("Bias analysis complete.");

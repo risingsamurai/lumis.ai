@@ -21,23 +21,23 @@ import { AIChat } from "../components/ai/AIChat";
 import { MitigationCard } from "../components/audit/MitigationCard";
 import { useAuditStore } from "../store/auditStore";
 import { Button } from "../components/ui/Button";
-import { mitigateBias } from "../services/api";
+import { mitigateDataset } from "../services/api";
 
 export default function AuditReport() {
   const { latestAnalysis, latestMitigation, setMitigation } = useAuditStore();
   const heatmap = useMemo(() => demoAudit.heatmap, []);
-  const metrics = latestAnalysis?.metrics;
+  const metrics = latestAnalysis;
 
   const runMitigation = async () => {
     try {
       const csv = await fetch("/demo-datasets/hiring_biased.csv").then((r) => r.text());
       const payload = {
-        dataset_base64: btoa(unescape(encodeURIComponent(csv))),
-        target_column: "selected",
-        sensitive_attributes: ["gender"],
-        favorable_outcome: 1,
+        datasetBase64: btoa(unescape(encodeURIComponent(csv))),
+        targetColumn: "selected",
+        sensitiveAttributes: ["gender"],
+        labelValue: 1,
       };
-      const response = await mitigateBias(payload);
+      const response = await mitigateDataset(payload);
       setMitigation(response);
       toast.success("Mitigation complete.");
     } catch (error) {
@@ -56,7 +56,7 @@ export default function AuditReport() {
               <p className="text-sm text-white/60">{demoAudit.datasetName}</p>
               <h2 className="mt-2 text-2xl font-bold">Significant Bias Detected</h2>
               <p className="mt-1 text-sm">
-                Rows analyzed: {(latestAnalysis?.summary.rows_analyzed ?? demoAudit.rowCount).toLocaleString()} | {demoAudit.createdAt}
+                Rows analyzed: {(latestAnalysis?.numRows ?? demoAudit.rowCount).toLocaleString()} | {demoAudit.createdAt}
               </p>
               <div className="mt-3">
                 <SeverityBadge severity={demoAudit.severity} />
@@ -79,17 +79,17 @@ export default function AuditReport() {
               <div className="mt-2 grid gap-2 md:grid-cols-2">
                 <MetricCard
                   label="Disparate Impact"
-                  value={metrics?.disparate_impact ?? m.disparateImpact}
+                  value={metrics?.disparateImpact ?? m.disparateImpact}
                   threshold=">= 0.8"
                 />
                 <MetricCard
                   label="Statistical Parity Diff"
-                  value={metrics?.statistical_parity ?? m.statParityDiff}
+                  value={metrics?.statisticalParity ?? m.statParityDiff}
                   threshold="|x| <= 0.1"
                 />
                 <MetricCard
                   label="Equal Opportunity Diff"
-                  value={metrics?.equal_opportunity ?? m.equalOpportunityDiff}
+                  value={metrics?.equalOpportunity ?? m.equalOpportunityDiff}
                   threshold="|x| <= 0.1"
                 />
                 <MetricCard label="Average Odds Diff" value={m.averageOddsDiff} threshold="|x| <= 0.1" />
@@ -123,9 +123,10 @@ export default function AuditReport() {
         </Card>
         <AIChat
           context={JSON.stringify({
-            bias_score: latestAnalysis?.summary.bias_score,
-            metrics: latestAnalysis?.metrics,
-            top_features: latestAnalysis?.top_features,
+            fairnessScore: latestAnalysis?.fairnessScore,
+            disparateImpact: latestAnalysis?.disparateImpact,
+            statisticalParity: latestAnalysis?.statisticalParity,
+            topFeatures: latestAnalysis?.topFeatures,
           })}
         />
       </div>
@@ -167,7 +168,7 @@ export default function AuditReport() {
         </Button>
         {latestMitigation ? (
           <p className="mt-2 text-sm text-white/70">
-            Bias score: {latestMitigation.before.summary.bias_score} {"->"} {latestMitigation.after.summary.bias_score}
+            Fairness score: {latestMitigation.before.fairnessScore} {"->"} {latestMitigation.after.fairnessScore}
           </p>
         ) : null}
         <div className="mt-3 grid gap-3 md:grid-cols-2">

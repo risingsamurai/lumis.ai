@@ -2,6 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
+html {
+  scroll-behavior: smooth;
+}
+
 :root {
   color: #f5f7ff;
   font-family: "Inter", system-ui, sans-serif;

@@ -1,14 +1,13 @@
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
-import { useEffect, useState } from "react";
 
-import { analyze, checkBackend } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { firebaseEnabled } from "../services/firebase";
 import { Plasma } from "../components/ui/Plasma";
+import { BiasAnalysisDashboard } from "../components/BiasAnalysisDashboard";
 
 // ─── Feature card data ────────────────────────────────────────────────────────
 const USE_CASES = ["Hiring", "Lending", "Healthcare", "Criminal Justice"] as const;
@@ -25,6 +24,12 @@ const STATS = [
   { value: "3×", label: "faster remediation with guided mitigation" },
 ] as const;
 
+const IMPACT_COUNTERS = [
+  { value: "2.4B+", label: "People affected by biased AI decisions annually" },
+  { value: "73%", label: "of HR teams use AI with no bias audit" },
+  { value: "SDG 10", label: "Our core UN development goal" },
+] as const;
+
 // ─── Animation variants ───────────────────────────────────────────────────────
 const fadeUp = {
   hidden: { opacity: 0, y: 24 },
@@ -38,16 +43,16 @@ const fadeUp = {
 export default function Landing() {
   const navigate = useNavigate();
   const { signInWithGoogle, user } = useAuth();
-  const [result, setResult] = useState<any>(null);
-
-  useEffect(() => {
-    checkBackend()
-      .then((res) => console.log("Backend response:", res))
-      .catch((err) => console.error("Backend error:", err));
-  }, []);
 
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-brand-bg text-white">
+      {/* ── SDG 10 IMPACT BANNER ──────────────────────────────────────────────── */}
+      <div className="sticky top-0 z-50" style={{ background: 'linear-gradient(to right, #1a1a2e, #16213e)' }}>
+        <div className="flex items-center justify-center px-4 py-2 text-xs text-white/70">
+          LUMIS.AI addresses UN SDG 10 — Reduced Inequalities | Helping organizations detect and fix AI bias in hiring, lending & healthcare
+        </div>
+      </div>
+
       {/* ── HERO SECTION ───────────────────────────────────────────────────── */}
       <section className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-4 text-center">
         {/* Plasma WebGL background – fills the entire hero section */}
@@ -102,16 +107,42 @@ export default function Landing() {
           in AI models — before they reach production.
         </motion.p>
 
-        {/* CTA buttons */}
+        {/* Impact Counters */}
         <motion.div
           variants={fadeUp}
           initial="hidden"
           animate="show"
           custom={3}
+          className="relative z-10 mt-10 grid grid-cols-1 gap-6 sm:grid-cols-3 md:gap-8"
+        >
+          {IMPACT_COUNTERS.map((counter, i) => (
+            <motion.div
+              key={counter.label}
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.6, delay: 0.5 + i * 0.1 }}
+              className="text-center"
+            >
+              <p className="bg-gradient-to-r from-brand-primary via-purple-400 to-brand-secondary bg-clip-text text-4xl font-bold text-transparent">
+                {counter.value}
+              </p>
+              <p className="mt-2 text-sm text-white/60">{counter.label}</p>
+            </motion.div>
+          ))}
+        </motion.div>
+
+        {/* CTA buttons */}
+        <motion.div
+          variants={fadeUp}
+          initial="hidden"
+          animate="show"
+          custom={4}
           className="relative z-10 mt-10 flex flex-wrap items-center justify-center gap-3"
         >
           {user ? (
-            <Button onClick={() => navigate("/dashboard")}>Go to Dashboard</Button>
+            <Button onClick={() => navigate("/dashboard")} aria-label="Navigate to Dashboard">
+              Go to Dashboard
+            </Button>
           ) : (
             <Button
               onClick={() => {
@@ -121,11 +152,16 @@ export default function Landing() {
                 }
                 void signInWithGoogle();
               }}
+              aria-label="Sign in with Google"
             >
               Sign in with Google
             </Button>
           )}
-          <Button variant="ghost" onClick={() => navigate("/audit/new?demo=1")}>
+          <Button 
+            variant="ghost" 
+            onClick={() => navigate("/audit/new?demo=1")}
+            aria-label="Try demo analysis"
+          >
             Try Demo
           </Button>
         </motion.div>
@@ -263,96 +299,9 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ── QUICK ANALYSIS WIDGET ──────────────────────────────────────────── */}
-      <section className="mx-auto max-w-3xl px-4 pb-24">
-        <motion.div
-          variants={fadeUp}
-          initial="hidden"
-          whileInView="show"
-          viewport={{ once: true }}
-          className="rounded-2xl border border-white/8 bg-brand-surface/80 p-8 backdrop-blur-md"
-        >
-          <h2 className="mb-1 text-xl font-bold">Quick Analysis</h2>
-          <p className="mb-5 text-sm text-white/50">
-            Upload a CSV to get an instant bias report.
-          </p>
-
-          <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-white/15 bg-white/3 p-8 text-center transition-colors hover:border-brand-primary/50 hover:bg-brand-primary/5">
-            <span className="text-2xl">📂</span>
-            <span className="text-sm text-white/60">Click to upload a CSV file</span>
-            <input
-              type="file"
-              accept=".csv"
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
-                const reader = new FileReader();
-                reader.onload = async () => {
-                  try {
-                    const base64 = (reader.result as string).split(",")[1];
-                    const res = await analyze({
-                      dataset_base64: base64,
-                      target_column: "income",
-                      sensitive_attributes: ["gender"],
-                    });
-                    setResult(res);
-                    console.log("ANALYZE RESULT:", JSON.stringify(res, null, 2));
-                    toast.success("Analysis completed 🚀");
-                  } catch (err) {
-                    console.error(err);
-                    toast.error("Analysis failed ❌");
-                  }
-                };
-                reader.readAsDataURL(file);
-              }}
-            />
-          </label>
-
-          {result && (
-            <motion.div
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mt-6 rounded-xl border border-white/10 bg-black/30 p-5"
-            >
-              <h3 className="mb-3 text-base font-bold">Analysis Result</h3>
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <div className="rounded-lg border border-white/8 bg-white/4 p-3">
-                  <p className="text-white/40">Rows</p>
-                  <p className="font-semibold">{result.rows_analyzed}</p>
-                </div>
-                <div className="rounded-lg border border-white/8 bg-white/4 p-3">
-                  <p className="text-white/40">Columns</p>
-                  <p className="font-semibold">{result.columns_analyzed}</p>
-                </div>
-              </div>
-              <div className="mt-3 flex items-center gap-2 rounded-lg border border-white/8 bg-white/4 p-3">
-                <span>{result.bias_detected ? "⚠️" : "✅"}</span>
-                <div>
-                  <p className="text-xs text-white/40">Bias Detected</p>
-                  <p className="font-semibold">{result.bias_detected ? "Yes" : "No"}</p>
-                </div>
-              </div>
-              {result.explainability?.human_explanation && (
-                <p className="mt-3 text-sm text-white/60">
-                  {result.explainability.human_explanation}
-                </p>
-              )}
-              <div className="mt-4 space-y-2 text-sm">
-                {[
-                  ["Statistical Parity", result.metrics?.summary?.statistical_parity],
-                  ["Equal Opportunity", result.metrics?.summary?.equal_opportunity],
-                  ["Disparate Impact", result.metrics?.summary?.disparate_impact],
-                ].map(([label, val]) => (
-                  <div key={label as string} className="flex items-center justify-between rounded-lg border border-white/8 bg-white/4 p-3">
-                    <span className="text-white/50">{label}</span>
-                    <span className="font-semibold">{String(val ?? "—")}</span>
-                  </div>
-                ))}
-              </div>
-            </motion.div>
-          )}
-        </motion.div>
+      {/* ── BIAS ANALYSIS DASHBOARD ───────────────────────────────────────────── */}
+      <section id="analysis" className="py-16 px-4">
+        <BiasAnalysisDashboard />
       </section>
     </div>
   );

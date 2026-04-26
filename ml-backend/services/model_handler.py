@@ -46,7 +46,9 @@ def decode_csv_base64(dataset_base64: str) -> pd.DataFrame:
 
 def _to_binary_target(target: pd.Series, favorable_outcome: Any) -> pd.Series:
     # Fairness metrics use binary labels where favorable outcome is 1.
-    binary = (target.astype(str) == str(favorable_outcome)).astype(int)
+    # Data is already pre-encoded as numerical, so compare numerically
+    favorable_outcome_float = float(favorable_outcome)
+    binary = (target.astype(float) == favorable_outcome_float).astype(int)
     if binary.nunique() < 2:
         raise ValueError("Target became single-class after favorable_outcome mapping.")
     return binary
@@ -65,6 +67,8 @@ def validate_columns(frame: pd.DataFrame, target_column: str, sensitive_attribut
         raise ValueError("At least one sensitive attribute is required.")
 
 
+
+
 def prepare_dataset(
     frame: pd.DataFrame,
     target_column: str,
@@ -75,6 +79,7 @@ def prepare_dataset(
 ) -> PreparedDataset:
     validate_columns(frame, target_column, sensitive_attributes)
 
+    # Data is already pre-encoded as numerical by preprocess_dataframe in main.py
     target_binary = _to_binary_target(frame[target_column], favorable_outcome)
     features = frame.drop(columns=[target_column]).copy()
 
@@ -96,13 +101,11 @@ def prepare_dataset(
 
 
 def build_baseline_model(input_frame: pd.DataFrame) -> Pipeline:
-    categorical_cols = input_frame.select_dtypes(include=["object", "category", "bool"]).columns.tolist()
-    numeric_cols = [col for col in input_frame.columns if col not in categorical_cols]
-
+    # Since all text columns are already converted to numerical in prepare_dataset,
+    # we can treat all columns as numeric (passthrough)
     preprocessor = ColumnTransformer(
         transformers=[
-            ("categorical", OneHotEncoder(handle_unknown="ignore"), categorical_cols),
-            ("numeric", "passthrough", numeric_cols),
+            ("numeric", "passthrough", list(input_frame.columns)),
         ]
     )
 

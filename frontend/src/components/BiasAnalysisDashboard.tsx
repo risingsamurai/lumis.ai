@@ -1,0 +1,552 @@
+import { useRef, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import toast from "react-hot-toast";
+import { useAnalysis } from "../hooks/useAnalysis";
+import { AnalysisResult, MitigationResult } from "../services/api";
+
+export function BiasAnalysisDashboard() {
+  const { state, loadFile, setConfig, runAnalysis, runMitigation, reset, loadDemoDataset } = useAnalysis();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showSettings, setShowSettings] = useState(false);
+
+  // ── Step 1: Idle / Upload ──────────────────────────────────────────────────
+  if (state.step === "idle") {
+    return (
+      <div className="w-full max-w-4xl mx-auto px-4 py-8">
+
+        {/* Header */}
+        <div className="text-center mb-10">
+          <div className="inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 
+                          rounded-full px-4 py-1.5 text-emerald-400 text-xs font-medium mb-4">
+            🌍 UN SDG 10 — Reduced Inequalities
+          </div>
+          <h1 className="text-3xl font-bold text-white mb-3">Detect Bias in Any AI Dataset</h1>
+          <p className="text-gray-400 max-w-xl mx-auto text-sm leading-relaxed">
+            Upload your CSV and we'll check if your AI model treats all groups fairly — 
+            across hiring, lending, healthcare, and more.
+          </p>
+        </div>
+
+        {/* Demo Dataset Cards */}
+        <div className="mb-8">
+          <p className="text-gray-500 text-xs font-medium uppercase tracking-wider mb-3 text-center">
+            Try a demo dataset
+          </p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[
+              { id: "hiring",     icon: "👔", label: "Hiring Bias",       sub: "Gender in employment",   sdg: "SDG 10", color: "emerald" },
+              { id: "lending",    icon: "🏦", label: "Lending Bias",      sub: "Race in loan approval",  sdg: "SDG 10", color: "blue"    },
+              { id: "healthcare", icon: "🏥", label: "Healthcare",        sub: "Race in readmission",    sdg: "SDG 3",  color: "purple"  },
+              { id: "criminal",   icon: "⚖️", label: "Criminal Justice",  sub: "Race in risk scoring",   sdg: "SDG 16", color: "amber"   },
+            ].map(d => (
+              <motion.button
+                key={d.id}
+                whileHover={{ y: -2, scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => loadDemoDataset(d.id)}
+                className="bg-gray-800/60 border border-gray-700 hover:border-emerald-500/40 
+                           rounded-xl p-4 text-left transition-all duration-200 group"
+              >
+                <div className="text-2xl mb-2">{d.icon}</div>
+                <p className="text-white text-sm font-semibold">{d.label}</p>
+                <p className="text-gray-500 text-xs mt-0.5">{d.sub}</p>
+                <span className="inline-block mt-2 text-xs bg-gray-700/60 text-gray-400 
+                                 rounded-full px-2 py-0.5">{d.sdg}</span>
+              </motion.button>
+            ))}
+          </div>
+        </div>
+
+        {/* Upload Zone */}
+        <div
+          onClick={() => fileInputRef.current?.click()}
+          onDragOver={e => e.preventDefault()}
+          onDrop={e => {
+            e.preventDefault();
+            const file = e.dataTransfer.files[0];
+            if (file && file.name.endsWith(".csv")) loadFile(file);
+            else toast.error("Please upload a CSV file");
+          }}
+          className="border-2 border-dashed border-gray-700 hover:border-emerald-500/50 
+                     rounded-2xl p-12 text-center cursor-pointer transition-all duration-200
+                     hover:bg-emerald-500/3 group"
+        >
+          <div className="text-4xl mb-3">📂</div>
+          <p className="text-gray-300 font-medium">Drop your CSV here or click to upload</p>
+          <p className="text-gray-600 text-sm mt-1">Any CSV with labeled columns works</p>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv"
+            className="hidden"
+            onChange={e => {
+              const file = e.target.files?.[0];
+              if (file) loadFile(file);
+            }}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // ── Step 2: Analyzing (loading) ────────────────────────────────────────────
+  if (state.step === "analyzing") {
+    return (
+      <div className="fixed inset-0 bg-gray-950/95 backdrop-blur-sm z-50 
+                      flex flex-col items-center justify-center gap-6">
+        <div className="relative w-20 h-20">
+          <div className="absolute inset-0 border-4 border-emerald-500/20 rounded-full" />
+          <div className="absolute inset-0 border-4 border-transparent border-t-emerald-500 
+                          rounded-full animate-spin" />
+        </div>
+
+        <div className="text-center">
+          <p className="text-white text-xl font-semibold mb-1">Analyzing your dataset...</p>
+          <p className="text-gray-400 text-sm">Running AIF360 fairness metrics + SHAP explanations</p>
+        </div>
+
+        {/* Progress bar */}
+        <div className="w-72 bg-gray-800 rounded-full h-1.5">
+          <motion.div
+            className="bg-emerald-500 h-1.5 rounded-full"
+            animate={{ width: `${state.progress}%` }}
+            transition={{ duration: 0.5 }}
+          />
+        </div>
+
+        <div className="flex gap-6 text-xs text-gray-600">
+          {["Loading data", "Computing metrics", "Running SHAP", "Generating report"].map((s, i) => (
+            <span key={s} className={state.progress > i * 25 ? "text-emerald-500" : ""}>{s}</span>
+          ))}
+        </div>
+
+        <p className="text-gray-700 text-xs">First run may take 30–60s while server warms up</p>
+      </div>
+    );
+  }
+
+  // ── Step 2.5: Fallback Configuration (only when auto-detection fails) ──────────
+  if (state.step === "configuring") {
+    const { csvColumns, request } = state;
+
+    return (
+      <div className="fixed inset-0 bg-gray-950/95 backdrop-blur-sm z-50 
+                      flex flex-col items-center justify-center">
+        <div className="bg-gray-900 border border-gray-700 rounded-2xl p-8 max-w-md w-full mx-4">
+          <div className="text-center mb-6">
+            <div className="text-4xl mb-3">🤔</div>
+            <h2 className="text-xl font-bold text-white mb-2">Couldn't auto-detect schema</h2>
+            <p className="text-gray-400 text-sm">
+              We need your help to identify the target column and protected attribute.
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <label className="text-gray-300 text-sm font-medium block mb-1.5">
+                Target column (what's being predicted)
+              </label>
+              <select
+                value={request.targetColumn || ""}
+                onChange={e => setConfig("targetColumn", e.target.value)}
+                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3
+                           text-white text-sm focus:outline-none focus:border-emerald-500"
+              >
+                <option value="">Select column...</option>
+                {csvColumns.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+
+            <div>
+              <label className="text-gray-300 text-sm font-medium block mb-1.5">
+                Protected attribute (sex, race, age, etc.)
+              </label>
+              <select
+                value={request.sensitiveAttributes?.[0] || ""}
+                onChange={e => setConfig("sensitiveAttributes", [e.target.value])}
+                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3
+                           text-white text-sm focus:outline-none focus:border-emerald-500"
+              >
+                <option value="">Select attribute...</option>
+                {csvColumns
+                  .filter(c => c !== request.targetColumn)
+                  .map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+
+            <button
+              onClick={runAnalysis}
+              disabled={!request.targetColumn || !request.sensitiveAttributes?.[0]}
+              className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 
+                         disabled:cursor-not-allowed text-white rounded-xl font-semibold text-sm"
+            >
+              Analyze Dataset
+            </button>
+
+            <button
+              onClick={reset}
+              className="w-full py-2 text-gray-500 hover:text-gray-300 text-sm"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Step 4: Error ──────────────────────────────────────────────────────────
+  if (state.step === "error") {
+    return (
+      <div className="w-full max-w-xl mx-auto px-4 py-12 text-center">
+        <div className="text-5xl mb-4">⚠️</div>
+        <h2 className="text-white text-xl font-bold mb-2">Analysis Failed</h2>
+        <p className="text-gray-400 text-sm mb-2">{state.error}</p>
+        <p className="text-gray-600 text-xs mb-6">
+          Common causes: CSV doesn't have the selected columns, or the backend is cold-starting (wait 30s and retry)
+        </p>
+        <div className="flex gap-3 justify-center">
+          <button
+            onClick={runAnalysis}
+            className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white 
+                       rounded-lg text-sm font-medium transition-colors"
+          >
+            Retry Analysis
+          </button>
+          <button
+            onClick={reset}
+            className="px-6 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 
+                       rounded-lg text-sm font-medium transition-colors"
+          >
+            Start Over
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Step 5: Results ────────────────────────────────────────────────────────
+  if (state.step === "done" && state.result) {
+    return (
+      <BiasReport
+        result={state.result}
+        mitigation={state.mitigation}
+        onMitigate={runMitigation}
+        onReset={reset}
+        isAnalyzing={false}
+        showSettings={showSettings}
+        setShowSettings={setShowSettings}
+      />
+    );
+  }
+
+  return null;
+}
+
+// ─── Bias Report Component ────────────────────────────────────────────────────
+
+function BiasReport({
+  result, mitigation, onMitigate, onReset, isAnalyzing, showSettings, setShowSettings
+}: {
+  result: AnalysisResult;
+  mitigation: MitigationResult | null;
+  onMitigate: () => void;
+  onReset: () => void;
+  isAnalyzing: boolean;
+  showSettings: boolean;
+  setShowSettings: (show: boolean) => void;
+}) {
+  const LEVEL_CONFIG = {
+    none:     { color: "emerald", bg: "bg-emerald-500/10", border: "border-emerald-500/30", text: "text-emerald-400", label: "No Bias Detected",    emoji: "✅" },
+    low:      { color: "blue",    bg: "bg-blue-500/10",    border: "border-blue-500/30",    text: "text-blue-400",    label: "Low Bias",             emoji: "🟡" },
+    moderate: { color: "amber",   bg: "bg-amber-500/10",   border: "border-amber-500/30",   text: "text-amber-400",   label: "Moderate Bias",        emoji: "⚠️" },
+    high:     { color: "orange",  bg: "bg-orange-500/10",  border: "border-orange-500/30",  text: "text-orange-400",  label: "High Bias Detected",   emoji: "🔴" },
+    critical: { color: "red",     bg: "bg-red-500/10",     border: "border-red-500/30",     text: "text-red-400",     label: "Critical Bias",        emoji: "🚨" },
+  };
+
+  const cfg = LEVEL_CONFIG[result.biasLevel];
+
+  const metrics = [
+    {
+      label: "Disparate Impact",
+      value: result.disparateImpact.toFixed(3),
+      pass: result.disparateImpact >= 0.8,
+      threshold: "≥ 0.80 (EEOC 4/5ths rule)",
+      tooltip: "Ratio of favorable outcomes between groups. Below 0.8 = legal risk.",
+    },
+    {
+      label: "Statistical Parity",
+      value: result.statisticalParity.toFixed(3),
+      pass: Math.abs(result.statisticalParity) <= 0.1,
+      threshold: "≤ ±0.10",
+      tooltip: "Difference in positive outcome rates. Closer to 0 = more fair.",
+    },
+    {
+      label: "Equal Opportunity",
+      value: result.equalOpportunity.toFixed(3),
+      pass: Math.abs(result.equalOpportunity) <= 0.1,
+      threshold: "≤ ±0.10",
+      tooltip: "Difference in true positive rates between groups.",
+    },
+    {
+      label: "Average Odds",
+      value: result.averageOdds.toFixed(3),
+      pass: Math.abs(result.averageOdds) <= 0.1,
+      threshold: "≤ ±0.10",
+      tooltip: "Combined measure of TPR and FPR differences.",
+    },
+  ];
+
+  return (
+    <div className="w-full max-w-4xl mx-auto px-4 py-8 space-y-6">
+
+      {/* Top Bar */}
+      <div className="flex items-center justify-between">
+        <button onClick={onReset} className="text-gray-500 hover:text-gray-300 text-sm flex items-center gap-1">
+          ← New Analysis
+        </button>
+        <div className="flex items-center gap-4">
+          <div className="text-gray-600 text-xs">
+            {result.numRows} rows · {result.numColumns} columns · 
+            Predicting: <span className="text-gray-400">{result.targetColumn}</span> · 
+            Protected: <span className="text-gray-400">{result.sensitiveAttribute}</span>
+          </div>
+          <button
+            onClick={() => setShowSettings(true)}
+            className="text-gray-500 hover:text-gray-300 transition-colors"
+            title="Change analysis settings"
+          >
+            ⚙️
+          </button>
+        </div>
+      </div>
+
+      {/* Bias Level Hero Card */}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        className={`rounded-2xl border ${cfg.bg} ${cfg.border} p-6`}
+      >
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
+            <div className="flex items-center gap-3 mb-2">
+              <span className="text-2xl">{cfg.emoji}</span>
+              <h2 className={`text-xl font-bold ${cfg.text}`}>{cfg.label}</h2>
+            </div>
+            <p className="text-gray-300 text-sm leading-relaxed max-w-2xl">
+              {result.biasExplanation}
+            </p>
+          </div>
+          <div className="text-right ml-6">
+            <div className={`text-5xl font-bold ${cfg.text}`}>{result.fairnessScore}</div>
+            <div className="text-gray-600 text-xs">/ 100 fairness score</div>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Metrics Grid */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {metrics.map((m, i) => (
+          <motion.div
+            key={m.label}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.08 }}
+            className={`rounded-xl border p-4 ${
+              m.pass
+                ? "bg-emerald-950/30 border-emerald-800/30"
+                : "bg-red-950/30 border-red-800/30"
+            }`}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-gray-400 text-xs">{m.label}</span>
+              <span className={`text-xs font-semibold ${m.pass ? "text-emerald-400" : "text-red-400"}`}>
+                {m.pass ? "PASS" : "FAIL"}
+              </span>
+            </div>
+            <div className={`text-2xl font-bold ${m.pass ? "text-emerald-300" : "text-red-300"}`}>
+              {m.value}
+            </div>
+            <div className="text-gray-600 text-xs mt-1">Threshold: {m.threshold}</div>
+          </motion.div>
+        ))}
+      </div>
+
+      {/* Compliance Check */}
+      <div className="bg-gray-800/40 rounded-2xl border border-gray-700/50 p-5">
+        <h3 className="text-white font-semibold text-sm mb-4">Compliance Check</h3>
+        <div className="grid grid-cols-3 gap-3">
+          {[
+            { name: "EU AI Act", sub: "Article 10 — bias audit", pass: result.compliance.euAiAct },
+            { name: "US EEOC",   sub: "4/5ths disparate impact rule", pass: result.compliance.eeoc },
+            { name: "GDPR",      sub: "Article 22 — explainability", pass: result.compliance.gdpr },
+          ].map(c => (
+            <div key={c.name} className={`rounded-xl p-3 border ${
+              c.pass
+                ? "bg-emerald-950/30 border-emerald-800/30"
+                : "bg-red-950/30 border-red-800/30"
+            }`}>
+              <div className="flex items-center gap-2 mb-1">
+                <span>{c.pass ? "✅" : "❌"}</span>
+                <span className="text-white text-sm font-medium">{c.name}</span>
+              </div>
+              <p className="text-gray-500 text-xs">{c.sub}</p>
+              <p className={`text-xs font-semibold mt-1 ${c.pass ? "text-emerald-500" : "text-red-500"}`}>
+                {c.pass ? "Compliant" : "Non-Compliant"}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Top Bias Features */}
+      {result.topFeatures.length > 0 && (
+        <div className="bg-gray-800/40 rounded-2xl border border-gray-700/50 p-5">
+          <h3 className="text-white font-semibold text-sm mb-4">
+            Top Bias-Contributing Features
+          </h3>
+          <div className="space-y-3">
+            {result.topFeatures.slice(0, 5).map((f, i) => (
+              <div key={i}>
+                <div className="flex justify-between items-center mb-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-gray-300 text-sm">{f.name}</span>
+                    {f.isProxy && (
+                      <span className="text-xs bg-amber-500/20 text-amber-400 
+                                       border border-amber-500/30 rounded-full px-2 py-0.5">
+                        proxy
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-amber-400 text-sm font-semibold">{f.impactPercent}%</span>
+                </div>
+                <div className="w-full bg-gray-700/50 rounded-full h-1.5">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${Math.min(100, f.impactPercent)}%` }}
+                    transition={{ delay: i * 0.1, duration: 0.6 }}
+                    className="bg-gradient-to-r from-amber-500 to-red-500 h-1.5 rounded-full"
+                  />
+                </div>
+                {f.explanation && (
+                  <p className="text-gray-600 text-xs mt-0.5">{f.explanation}</p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Mitigation Section */}
+      {!mitigation ? (
+        <div className="bg-gray-800/40 rounded-2xl border border-gray-700/50 p-5">
+          <h3 className="text-white font-semibold text-sm mb-2">Fix the Bias</h3>
+          <p className="text-gray-400 text-xs mb-4">
+            Apply the AIF360 Reweighing algorithm to reduce bias while preserving model accuracy.
+            Takes 20–40 seconds.
+          </p>
+          <button
+            onClick={onMitigate}
+            disabled={isAnalyzing}
+            className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50
+                       text-white rounded-xl text-sm font-semibold transition-all duration-200
+                       hover:shadow-lg hover:shadow-emerald-500/20 flex items-center gap-2"
+          >
+            ⚡ Apply Bias Mitigation
+          </button>
+        </div>
+      ) : (
+        <div className="bg-gray-800/40 rounded-2xl border border-emerald-700/30 p-5">
+          <h3 className="text-emerald-400 font-semibold text-sm mb-4">
+            ✅ Mitigation Complete — Reweighing Algorithm Applied
+          </h3>
+          <div className="grid grid-cols-3 gap-4">
+            {[
+              { label: "Fairness Score",   before: mitigation.before.fairnessScore,   after: mitigation.after.fairnessScore,   suffix: "/100", higherBetter: true },
+              { label: "Disparate Impact", before: mitigation.before.disparateImpact, after: mitigation.after.disparateImpact, suffix: "",     higherBetter: true },
+              { label: "Stat. Parity",     before: Math.abs(mitigation.before.statisticalParity), after: Math.abs(mitigation.after.statisticalParity), suffix: "", higherBetter: false },
+            ].map(m => {
+              const improved = m.higherBetter ? m.after > m.before : m.after < m.before;
+              return (
+                <div key={m.label} className="text-center">
+                  <p className="text-gray-500 text-xs mb-2">{m.label}</p>
+                  <div className="flex items-center justify-center gap-2">
+                    <span className="text-gray-500 text-lg">{typeof m.before === "number" ? m.before.toFixed(2) : m.before}{m.suffix}</span>
+                    <span className="text-gray-600">→</span>
+                    <span className={`text-lg font-bold ${improved ? "text-emerald-400" : "text-red-400"}`}>
+                      {typeof m.after === "number" ? m.after.toFixed(2) : m.after}{m.suffix}
+                    </span>
+                  </div>
+                  <span className={`text-xs ${improved ? "text-emerald-500" : "text-gray-500"}`}>
+                    {improved ? "▲ Improved" : "▼ Unchanged"}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+          <div className="mt-4 text-center">
+            <span className="text-emerald-400 font-semibold text-lg">
+              +{mitigation.improvement} point improvement
+            </span>
+            <span className="text-gray-500 text-xs ml-2">in overall fairness score</span>
+          </div>
+        </div>
+      )}
+
+    {/* Settings Modal */}
+      <AnimatePresence>
+        {showSettings && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-gray-900 border border-gray-700 rounded-2xl p-6 max-w-md w-full mx-4"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-white font-bold">Analysis Settings</h3>
+                <button
+                  onClick={() => setShowSettings(false)}
+                  className="text-gray-500 hover:text-gray-300"
+                >
+                  ✕
+                </button>
+              </div>
+              
+              <div className="space-y-3 text-sm text-gray-400">
+                <div className="flex justify-between">
+                  <span>Target Column:</span>
+                  <span className="text-white">{result.targetColumn}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Protected Attribute:</span>
+                  <span className="text-white">{result.sensitiveAttribute}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Favorable Outcome:</span>
+                  <span className="text-white">{result.favorableOutcome}</span>
+                </div>
+              </div>
+
+              <p className="text-xs text-gray-500 mt-4">
+                These columns were auto-detected. To change them, upload a new dataset or use the manual configuration mode.
+              </p>
+
+              <button
+                onClick={() => setShowSettings(false)}
+                className="w-full mt-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-medium"
+              >
+                Close
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
