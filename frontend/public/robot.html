@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Android Robot</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: transparent; overflow: hidden; width: 100vw; height: 100vh; font-family: 'Courier New', monospace; }
+  canvas { display: block; }
+  #hud {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 10;
+  }
+  .hud-corner {
+    position: absolute; width: 60px; height: 60px;
+    border-color: rgba(0,207,255,0.5); border-style: solid; border-width: 0;
+  }
+  .hud-tl { top: 20px; left: 20px; border-top-width: 2px; border-left-width: 2px; }
+  .hud-tr { top: 20px; right: 20px; border-top-width: 2px; border-right-width: 2px; }
+  .hud-bl { bottom: 20px; left: 20px; border-bottom-width: 2px; border-left-width: 2px; }
+  .hud-br { bottom: 20px; right: 20px; border-bottom-width: 2px; border-right-width: 2px; }
+  .hud-text {
+    position: absolute; color: rgba(0,207,255,0.7); font-size: 10px;
+    letter-spacing: 2px; text-transform: uppercase;
+  }
+  .hud-tl-text { top: 30px; left: 90px; }
+  .hud-tr-text { top: 30px; right: 90px; text-align: right; }
+  .hud-bl-text { bottom: 30px; left: 90px; }
+  .hud-br-text { bottom: 30px; right: 90px; text-align: right; }
+  .hud-center-left {
+    position: absolute; left: 20px; top: 50%; transform: translateY(-50%);
+    color: rgba(0,207,255,0.5); font-size: 9px; letter-spacing: 1px;
+    line-height: 1.8;
+  }
+  .hud-center-right {
+    position: absolute; right: 20px; top: 50%; transform: translateY(-50%);
+    color: rgba(0,207,255,0.5); font-size: 9px; letter-spacing: 1px;
+    line-height: 1.8; text-align: right;
+  }
+  .hud-scanline {
+    position: absolute; width: 100%; height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(0,207,255,0.3), transparent);
+    animation: scanline 4s linear infinite;
+  }
+  @keyframes scanline {
+    0% { top: -1px; } 100% { top: 100%; }
+  }
+  .hud-bar {
+    display: flex; align-items: center; gap: 6px; margin: 2px 0;
+  }
+  .hud-bar-label { width: 40px; font-size: 8px; color: rgba(0,207,255,0.6); }
+  .hud-bar-track {
+    width: 80px; height: 3px; background: rgba(0,207,255,0.15);
+    position: relative; overflow: hidden;
+  }
+  .hud-bar-fill {
+    height: 100%; background: rgba(0,207,255,0.7);
+    animation: barAnim 2s ease-in-out infinite alternate;
+  }
+  @keyframes barAnim { 0% { opacity: 0.5; } 100% { opacity: 1; } }
+  #status-dot {
+    display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+    background: #00cfff; margin-right: 6px;
+    animation: blink-dot 1.5s ease-in-out infinite;
+  }
+  @keyframes blink-dot { 0%,100% { opacity: 1; } 50% { opacity: 0.2; } }
+  #vignette {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.85) 100%);
+    pointer-events: none; z-index: 5;
+  }
+  #chromatic {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 6;
+    mix-blend-mode: screen; opacity: 0.04;
+    background: radial-gradient(ellipse at 48% 50%, transparent 60%, rgba(255,0,0,0.5) 100%);
+  }
+  #chromatic2 {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 6;
+    mix-blend-mode: screen; opacity: 0.04;
+    background: radial-gradient(ellipse at 52% 50%, transparent 60%, rgba(0,0,255,0.5) 100%);
+  }
+</style>
+</head>
+<body>
+
+<div id="vignette"></div>
+<div id="chromatic"></div>
+<div id="chromatic2"></div>
+
+<div id="hud">
+  <div class="hud-scanline"></div>
+  <div class="hud-corner hud-tl"></div>
+  <div class="hud-corner hud-tr"></div>
+  <div class="hud-corner hud-bl"></div>
+  <div class="hud-corner hud-br"></div>
+  <div class="hud-text hud-tl-text">UNIT-7 // ANDROID MK-IV</div>
+  <div class="hud-text hud-tr-text">SYS ONLINE // 2047.04.26</div>
+  <div class="hud-text hud-bl-text"><span id="status-dot"></span>NEURAL LINK ACTIVE</div>
+  <div class="hud-text hud-br-text" id="coords">X: 0.00 | Y: 0.00</div>
+  <div class="hud-center-left">
+    <div class="hud-bar"><span class="hud-bar-label">POWER</span><div class="hud-bar-track"><div class="hud-bar-fill" style="width:94%"></div></div></div>
+    <div class="hud-bar"><span class="hud-bar-label">OPTIC</span><div class="hud-bar-track"><div class="hud-bar-fill" style="width:100%;animation-delay:0.3s"></div></div></div>
+    <div class="hud-bar"><span class="hud-bar-label">SERVO</span><div class="hud-bar-track"><div class="hud-bar-fill" style="width:87%;animation-delay:0.7s"></div></div></div>
+    <div class="hud-bar"><span class="hud-bar-label">NEURAL</span><div class="hud-bar-track"><div class="hud-bar-fill" style="width:78%;animation-delay:1.1s"></div></div></div>
+  </div>
+  <div class="hud-center-right">
+    <div>TEMP: 36.2°C</div>
+    <div>CPU: 12%</div>
+    <div>MEM: 4.1 TB</div>
+    <div>UPTIME: 847h</div>
+    <div style="margin-top:8px;color:rgba(0,207,255,0.3)">///////////////</div>
+    <div>TRACKING: ON</div>
+    <div id="blink-status">BLINK: READY</div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const W = window.innerWidth, H = window.innerHeight;
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setSize(W, H);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.2;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.setClearColor(0x000000, 0);
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(45, W / H, 0.1, 100);
+camera.position.set(0, 1.2, 8.5);
+camera.lookAt(0, 1.0, 0);
+
+// Materials
+const darkMat = new THREE.MeshStandardMaterial({ color: 0x1a1e24, metalness: 0.85, roughness: 0.25 });
+const armorMat = new THREE.MeshPhysicalMaterial({ color: 0xdde8f0, metalness: 0.92, roughness: 0.04, clearcoat: 1.0, clearcoatRoughness: 0.08 });
+const jointMat = new THREE.MeshStandardMaterial({ color: 0x0d0f12, metalness: 0.7, roughness: 0.45 });
+const cyanMat = new THREE.MeshStandardMaterial({ color: 0x00cfff, emissive: 0x00cfff, emissiveIntensity: 2.2, metalness: 0.1, roughness: 0.3 });
+const cyanDimMat = new THREE.MeshStandardMaterial({ color: 0x00cfff, emissive: 0x00cfff, emissiveIntensity: 1.5, metalness: 0.1, roughness: 0.3 });
+const whiteMat = new THREE.MeshPhysicalMaterial({ color: 0xf5faff, metalness: 0.95, roughness: 0.03, clearcoat: 1.0, clearcoatRoughness: 0.05 });
+const darkGunMat = new THREE.MeshStandardMaterial({ color: 0x14181f, metalness: 0.8, roughness: 0.3 });
+const eyeGlowMat = new THREE.MeshStandardMaterial({ color: 0x00cfff, emissive: 0x00cfff, emissiveIntensity: 3.0, transparent: true, opacity: 0.9 });
+const haloMat = new THREE.MeshStandardMaterial({ color: 0x00cfff, emissive: 0x00cfff, emissiveIntensity: 1.0, transparent: true, opacity: 0.18, side: THREE.DoubleSide, depthWrite: false });
+
+// Robot root group
+const robot = new THREE.Group();
+robot.position.set(0, 0, 0);
+scene.add(robot);
+
+// === HEAD ===
+const headGroup = new THREE.Group();
+headGroup.position.set(0, 3.05, 0);
+robot.add(headGroup);
+
+const headGeo = new THREE.SphereGeometry(0.72, 64, 48);
+headGeo.scale(1, 1.18, 0.95);
+const head = new THREE.Mesh(headGeo, darkGunMat);
+headGroup.add(head);
+
+// Eye sockets
+[-0.23, 0.23].forEach((x, i) => {
+  const socketGeo = new THREE.SphereGeometry(0.115, 32, 32);
+  const socket = new THREE.Mesh(socketGeo, jointMat);
+  socket.position.set(x, 0.05, 0.64);
+  socket.scale.z = 0.5;
+  headGroup.add(socket);
+
+  const eyeGeo = new THREE.SphereGeometry(0.085, 32, 32);
+  const eye = new THREE.Mesh(eyeGeo, eyeGlowMat);
+  eye.position.set(x, 0.05, 0.695);
+  eye.scale.z = 0.4;
+  headGroup.add(eye);
+  eye.userData.isEye = true;
+  eye.userData.baseIntensity = 3.0;
+
+  // Eye halo rings
+  for (let r = 1; r <= 3; r++) {
+    const haloGeo = new THREE.RingGeometry(0.085 + r * 0.025, 0.085 + r * 0.025 + 0.012, 32);
+    const halo = new THREE.Mesh(haloGeo, haloMat.clone());
+    halo.material.opacity = 0.25 / r;
+    halo.position.set(x, 0.05, 0.698 + r * 0.005);
+    headGroup.add(halo);
+  }
+
+  // Eye point light
+  const eyeLight = new THREE.PointLight(0x00cfff, 1.2, 1.8);
+  eyeLight.position.set(x, 0.05, 0.8);
+  headGroup.add(eyeLight);
+  eye.userData.pointLight = eyeLight;
+});
+
+// Forehead dots
+[-0.07, 0.07].forEach(x => {
+  const dotGeo = new THREE.SphereGeometry(0.022, 16, 16);
+  const dot = new THREE.Mesh(dotGeo, cyanMat);
+  dot.position.set(x, 0.48, 0.52);
+  headGroup.add(dot);
+  const dHalo = new THREE.Mesh(new THREE.RingGeometry(0.03, 0.055, 24), haloMat.clone());
+  dHalo.material.opacity = 0.3;
+  dHalo.position.set(x, 0.48, 0.525);
+  headGroup.add(dHalo);
+});
+
+// Nose ridge
+const noseGeo = new THREE.CylinderGeometry(0.018, 0.012, 0.12, 8);
+const nose = new THREE.Mesh(noseGeo, darkMat);
+nose.position.set(0, -0.06, 0.68);
+nose.rotation.x = Math.PI / 2 + 0.3;
+headGroup.add(nose);
+
+// Lips
+const lipGeo = new THREE.TorusGeometry(0.1, 0.012, 8, 32, Math.PI);
+const lips = new THREE.Mesh(lipGeo, darkMat);
+lips.position.set(0, -0.28, 0.63);
+lips.rotation.x = -0.15;
+headGroup.add(lips);
+
+// Cheekbone accents
+[-0.38, 0.38].forEach(x => {
+  const cbGeo = new THREE.BoxGeometry(0.18, 0.04, 0.04);
+  const cb = new THREE.Mesh(cbGeo, darkMat);
+  cb.position.set(x, 0.0, 0.52);
+  cb.rotation.y = x > 0 ? -0.4 : 0.4;
+  headGroup.add(cb);
+});
+
+// === NECK ===
+const neckGroup = new THREE.Group();
+neckGroup.position.set(0, 2.35, 0);
+robot.add(neckGroup);
+
+for (let i = 0; i < 5; i++) {
+  const t = i / 4;
+  const r = 0.16 + t * 0.1;
+  const ringGeo = new THREE.CylinderGeometry(r, r + 0.01, 0.1, 32);
+  const ring = new THREE.Mesh(ringGeo, darkGunMat);
+  ring.position.y = i * 0.145;
+  neckGroup.add(ring);
+  ring.userData.neckRing = true;
+
+  if (i < 4) {
+    const stripGeo = new THREE.CylinderGeometry(r + 0.005, r + 0.005, 0.03, 32);
+    const strip = new THREE.Mesh(stripGeo, cyanMat);
+    strip.position.y = i * 0.145 + 0.065;
+    neckGroup.add(strip);
+    const sHalo = new THREE.Mesh(new THREE.CylinderGeometry(r + 0.018, r + 0.018, 0.04, 32), haloMat.clone());
+    sHalo.material.opacity = 0.2;
+    sHalo.position.y = i * 0.145 + 0.065;
+    neckGroup.add(sHalo);
+  }
+}
+
+// === BODY ===
+const bodyGroup = new THREE.Group();
+bodyGroup.position.set(0, 0.6, 0);
+robot.add(bodyGroup);
+
+// Chest
+const chestGeo = new THREE.BoxGeometry(2.0, 1.6, 0.9);
+const chest = new THREE.Mesh(chestGeo, whiteMat);
+chest.position.set(0, 0.8, 0);
+bodyGroup.add(chest);
+
+// Chest panel lines
+const panelH = new THREE.Mesh(new THREE.BoxGeometry(2.02, 0.025, 0.92), jointMat);
+panelH.position.set(0, 0.82, 0);
+bodyGroup.add(panelH);
+const panelV = new THREE.Mesh(new THREE.BoxGeometry(0.025, 1.62, 0.92), jointMat);
+panelV.position.set(0, 0.8, 0);
+bodyGroup.add(panelV);
+
+// Chest emblem - cyan arc
+const emblemGeo = new THREE.TorusGeometry(0.22, 0.025, 8, 32, Math.PI * 1.5);
+const emblem = new THREE.Mesh(emblemGeo, cyanMat);
+emblem.position.set(0, 0.78, 0.46);
+emblem.rotation.z = Math.PI * 0.75;
+bodyGroup.add(emblem);
+const emblemHalo = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.045, 8, 32, Math.PI * 1.5), haloMat.clone());
+emblemHalo.material.opacity = 0.25;
+emblemHalo.position.copy(emblem.position);
+emblemHalo.rotation.copy(emblem.rotation);
+bodyGroup.add(emblemHalo);
+
+// Chest center crystal
+const crystalGeo = new THREE.OctahedronGeometry(0.1);
+const crystal = new THREE.Mesh(crystalGeo, eyeGlowMat);
+crystal.position.set(0, 0.78, 0.46);
+bodyGroup.add(crystal);
+const cLight = new THREE.PointLight(0x00cfff, 0.8, 2.0);
+cLight.position.set(0, 0.78, 0.6);
+bodyGroup.add(cLight);
+
+// Collar
+const collarGeo = new THREE.CylinderGeometry(0.38, 0.42, 0.18, 32);
+const collar = new THREE.Mesh(collarGeo, jointMat);
+collar.position.set(0, 1.62, 0);
+bodyGroup.add(collar);
+
+// Lower torso
+const lowerGeo = new THREE.BoxGeometry(1.65, 0.4, 0.8);
+const lower = new THREE.Mesh(lowerGeo, darkGunMat);
+lower.position.set(0, 0.0, 0);
+bodyGroup.add(lower);
+const waistGeo = new THREE.BoxGeometry(1.7, 0.08, 0.82);
+const waist = new THREE.Mesh(waistGeo, jointMat);
+waist.position.set(0, 0.22, 0);
+bodyGroup.add(waist);
+
+// === SHOULDERS & ARMS ===
+[-1, 1].forEach(side => {
+  const armGroup = new THREE.Group();
+  armGroup.position.set(side * 1.28, 1.65, 0);
+  bodyGroup.add(armGroup);
+
+  // Shoulder pauldron
+  const shoulderGeo = new THREE.SphereGeometry(0.42, 32, 32);
+  shoulderGeo.scale(1.1, 0.95, 0.95);
+  const shoulder = new THREE.Mesh(shoulderGeo, whiteMat);
+  shoulder.position.set(side * 0.28, 0.1, 0);
+  armGroup.add(shoulder);
+
+  // Shoulder sheen
+  const sheenGeo = new THREE.SphereGeometry(0.22, 16, 16);
+  const sheen = new THREE.Mesh(sheenGeo, new THREE.MeshPhysicalMaterial({ color: 0xffffff, metalness: 0.98, roughness: 0.01, transparent: true, opacity: 0.3, clearcoat: 1 }));
+  sheen.position.set(side * 0.26, 0.25, 0.18);
+  armGroup.add(sheen);
+
+  // Shoulder joint
+  const sJointGeo = new THREE.CylinderGeometry(0.18, 0.18, 0.14, 32);
+  const sJoint = new THREE.Mesh(sJointGeo, jointMat);
+  sJoint.rotation.z = Math.PI / 2;
+  sJoint.position.set(side * 0.0, 0.1, 0);
+  armGroup.add(sJoint);
+
+  // Turbine detail
+  const turbineGroup = new THREE.Group();
+  turbineGroup.position.set(side * 0.0, 0.1, side * 0.19);
+  turbineGroup.rotation.y = side * Math.PI / 2;
+  armGroup.add(turbineGroup);
+
+  const outerRingGeo = new THREE.TorusGeometry(0.17, 0.018, 8, 32);
+  turbineGroup.add(new THREE.Mesh(outerRingGeo, jointMat));
+  const innerRingGeo = new THREE.TorusGeometry(0.1, 0.012, 8, 32);
+  turbineGroup.add(new THREE.Mesh(innerRingGeo, darkGunMat));
+  const hubGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.04, 16);
+  hubGeo.rotateX(Math.PI / 2);
+  turbineGroup.add(new THREE.Mesh(hubGeo, cyanDimMat));
+  for (let s = 0; s < 6; s++) {
+    const spokeGeo = new THREE.BoxGeometry(0.015, 0.13, 0.01);
+    const spoke = new THREE.Mesh(spokeGeo, darkMat);
+    spoke.rotation.z = (s / 6) * Math.PI * 2;
+    turbineGroup.add(spoke);
+  }
+
+  // Cyan rim on shoulder
+  const rimGeo = new THREE.TorusGeometry(0.42, 0.012, 8, 64);
+  const rim = new THREE.Mesh(rimGeo, cyanDimMat);
+  rim.position.set(side * 0.28, 0.1, 0);
+  rim.rotation.y = Math.PI / 2;
+  armGroup.add(rim);
+
+  // Upper arm
+  const uArmGeo = new THREE.CylinderGeometry(0.2, 0.17, 0.72, 24);
+  const uArm = new THREE.Mesh(uArmGeo, darkGunMat);
+  uArm.position.set(side * 0.28, -0.55, 0);
+  armGroup.add(uArm);
+
+  // Upper arm armor vanes
+  [-1, 1].forEach(v => {
+    const vaneGeo = new THREE.BoxGeometry(0.36, 0.68, 0.07);
+    const vane = new THREE.Mesh(vaneGeo, armorMat);
+    vane.position.set(side * 0.28, -0.55, v * 0.22);
+    armGroup.add(vane);
+  });
+
+  // Elbow
+  const elbowGeo = new THREE.SphereGeometry(0.19, 24, 24);
+  const elbow = new THREE.Mesh(elbowGeo, jointMat);
+  elbow.position.set(side * 0.28, -1.0, 0.06);
+  armGroup.add(elbow);
+  const eTorus = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.025, 8, 32), darkMat);
+  eTorus.position.copy(elbow.position);
+  eTorus.rotation.y = Math.PI / 2;
+  armGroup.add(eTorus);
+
+  // Forearm
+  const fArmGeo = new THREE.CylinderGeometry(0.165, 0.19, 0.7, 24);
+  const fArm = new THREE.Mesh(fArmGeo, darkGunMat);
+  fArm.position.set(side * 0.28, -1.46, 0.08);
+  fArm.rotation.x = 0.12;
+  armGroup.add(fArm);
+
+  [-1, 1].forEach(v => {
+    const fVaneGeo = new THREE.BoxGeometry(0.32, 0.66, 0.065);
+    const fVane = new THREE.Mesh(fVaneGeo, armorMat);
+    fVane.position.set(side * 0.28, -1.46, v * 0.2 + 0.05);
+    fVane.rotation.x = 0.12;
+    armGroup.add(fVane);
+  });
+
+  // Wrist
+  const wristGeo = new THREE.TorusGeometry(0.18, 0.03, 8, 32);
+  const wrist = new THREE.Mesh(wristGeo, darkMat);
+  wrist.position.set(side * 0.28, -1.86, 0.1);
+  wrist.rotation.x = Math.PI / 2;
+  armGroup.add(wrist);
+  const wStrip = new THREE.Mesh(new THREE.TorusGeometry(0.185, 0.018, 8, 32), cyanDimMat);
+  wStrip.position.copy(wrist.position);
+  wStrip.rotation.copy(wrist.rotation);
+  armGroup.add(wStrip);
+
+  // Hand
+  const handGroup = new THREE.Group();
+  handGroup.position.set(side * 0.28, -2.12, 0.1);
+  armGroup.add(handGroup);
+
+  const palmGeo = new THREE.BoxGeometry(0.32, 0.28, 0.2);
+  const palm = new THREE.Mesh(palmGeo, darkGunMat);
+  handGroup.add(palm);
+
+  const palmPanel = new THREE.Mesh(new THREE.BoxGeometry(0.33, 0.025, 0.21), jointMat);
+  palmPanel.position.y = 0.02;
+  handGroup.add(palmPanel);
+
+  // Fingers
+  const fingerOffsets = [-0.11, -0.037, 0.037, 0.11];
+  fingerOffsets.forEach((fx, fi) => {
+    const fingerGroup = new THREE.Group();
+    fingerGroup.position.set(fx, -0.22, 0);
+    handGroup.add(fingerGroup);
+    [0, 1].forEach(seg => {
+      const fGeo = new THREE.BoxGeometry(0.062, 0.11, 0.09);
+      const f = new THREE.Mesh(fGeo, seg === 0 ? darkGunMat : darkMat);
+      f.position.y = -seg * 0.115;
+      fingerGroup.add(f);
+      if (seg === 0) {
+        const kGeo = new THREE.BoxGeometry(0.068, 0.022, 0.095);
+        const k = new THREE.Mesh(kGeo, jointMat);
+        k.position.y = -0.058;
+        fingerGroup.add(k);
+      }
+    });
+  });
+
+  // Thumb
+  const thumbGroup = new THREE.Group();
+  thumbGroup.position.set(side * 0.19, -0.08, -0.08);
+  thumbGroup.rotation.z = side * 0.5;
+  handGroup.add(thumbGroup);
+  const t1 = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.1, 0.08), darkGunMat);
+  t1.position.set(0, -0.05, 0);
+  thumbGroup.add(t1);
+  const t2 = new THREE.Mesh(new THREE.BoxGeometry(0.065, 0.09, 0.075), darkMat);
+  t2.position.set(0, -0.145, 0);
+  thumbGroup.add(t2);
+});
+
+// === LIGHTING ===
+const ambient = new THREE.AmbientLight(0x111827, 0.8);
+scene.add(ambient);
+
+const keyLight = new THREE.DirectionalLight(0xfff5e8, 2.5);
+keyLight.position.set(-3, 5, 4);
+keyLight.castShadow = true;
+scene.add(keyLight);
+
+const rimL = new THREE.DirectionalLight(0x00d4ff, 4.0);
+rimL.position.set(-4, 2, -4);
+scene.add(rimL);
+
+const rimR = new THREE.DirectionalLight(0x0099ff, 3.5);
+rimR.position.set(4, 2, -4);
+scene.add(rimR);
+
+const fillLight = new THREE.DirectionalLight(0xe8f4ff, 1.0);
+fillLight.position.set(3, 3, 3);
+scene.add(fillLight);
+
+const bottomLight = new THREE.PointLight(0x003366, 1.2, 8);
+bottomLight.position.set(0, -2, 0);
+scene.add(bottomLight);
+
+// === PARTICLES ===
+const particleCount = 280;
+const pGeometry = new THREE.BufferGeometry();
+const pPositions = new Float32Array(particleCount * 3);
+const pVelocities = [];
+for (let i = 0; i < particleCount; i++) {
+  const theta = Math.random() * Math.PI * 2;
+  const r = 1.8 + Math.random() * 2.5;
+  pPositions[i * 3] = Math.cos(theta) * r;
+  pPositions[i * 3 + 1] = (Math.random() - 0.5) * 5 + 1.5;
+  pPositions[i * 3 + 2] = Math.sin(theta) * r - 1;
+  pVelocities.push({ vx: (Math.random() - 0.5) * 0.003, vy: (Math.random() - 0.5) * 0.004, vz: (Math.random() - 0.5) * 0.003 });
+}
+pGeometry.setAttribute('position', new THREE.BufferAttribute(pPositions, 3));
+const pMat = new THREE.PointsMaterial({ color: 0x00cfff, size: 0.022, transparent: true, opacity: 0.55, sizeAttenuation: true });
+const particles = new THREE.Points(pGeometry, pMat);
+scene.add(particles);
+
+// === SCAN RING ===
+const scanGroup = new THREE.Group();
+scanGroup.position.set(0, 0.8, 0);
+scene.add(scanGroup);
+const scanGeo = new THREE.RingGeometry(0, 0.02, 64);
+const scanMat = new THREE.MeshBasicMaterial({ color: 0x00cfff, transparent: true, opacity: 0.7, side: THREE.DoubleSide });
+const scanRing = new THREE.Mesh(scanGeo, scanMat);
+scanRing.rotation.x = -Math.PI / 2;
+scanGroup.add(scanRing);
+let scanRadius = 0;
+let scanOpacity = 0.7;
+
+// === MOUSE TRACKING ===
+let mouseNX = 0, mouseNY = 0, targetMX = 0, targetMY = 0;
+document.addEventListener('mousemove', e => {
+  mouseNX = (e.clientX / W - 0.5) * 2;
+  mouseNY = (e.clientY / H - 0.5) * 2;
+  document.getElementById('coords').textContent = `X: ${mouseNX.toFixed(2)} | Y: ${mouseNY.toFixed(2)}`;
+});
+document.addEventListener('touchmove', e => {
+  e.preventDefault();
+  const t = e.touches[0];
+  mouseNX = (t.clientX / W - 0.5) * 2;
+  mouseNY = (t.clientY / H - 0.5) * 2;
+}, { passive: false });
+
+window.addEventListener('message', e => {
+  if (e.data && e.data.type === 'mousemove') {
+    mouseNX = (e.data.x / W - 0.5) * 2;
+    mouseNY = (e.data.y / H - 0.5) * 2;
+    document.getElementById('coords').textContent = `X: ${mouseNX.toFixed(2)} | Y: ${mouseNY.toFixed(2)}`;
+  }
+});
+
+// === BLINK STATE ===
+let blinkTimer = 0;
+let blinkDuration = 0;
+let isBlinking = false;
+let blinkInterval = 3 + Math.random() * 4;
+const blinkStatus = document.getElementById('blink-status');
+
+// === ANIMATION ===
+const clock = new THREE.Clock();
+let t = 0;
+
+function animate() {
+  requestAnimationFrame(animate);
+  const delta = clock.getDelta();
+  t += delta;
+
+  // Mouse smooth lerp
+  targetMX += (mouseNX - targetMX) * 0.06;
+  targetMY += (mouseNY - targetMY) * 0.06;
+
+  // Head tracking
+  headGroup.rotation.y = targetMX * 0.55;
+  headGroup.rotation.x = targetMY * 0.38;
+
+  // Neck follow
+  neckGroup.rotation.y = targetMX * 0.22;
+  neckGroup.rotation.x = targetMY * 0.1;
+
+  // Neck ring subtle individual rotation
+  let ni = 0;
+  neckGroup.children.forEach(child => {
+    if (child.userData.neckRing) {
+      child.rotation.y = targetMX * (0.05 + ni * 0.04);
+      ni++;
+    }
+  });
+
+  // Body float
+  const floatY = Math.sin(t * 0.9) * 0.07;
+  const swayX = Math.sin(t * 0.6) * 0.015;
+  robot.position.y = floatY;
+  robot.position.x = swayX;
+  robot.rotation.z = Math.sin(t * 0.55) * 0.012;
+
+  // Breathing tilt
+  bodyGroup.rotation.x = Math.sin(t * 1.1) * 0.012;
+
+  // Crystal rotation
+  crystal.rotation.x = t * 1.2;
+  crystal.rotation.y = t * 0.8;
+
+  // Emissive pulse on eyes
+  const pulse = 2.5 + Math.sin(t * 2.2) * 0.8;
+  headGroup.traverse(obj => {
+    if (obj.isMesh && obj.material.emissive && obj.userData.isEye) {
+      obj.material.emissiveIntensity = pulse;
+      if (obj.userData.pointLight) {
+        obj.userData.pointLight.intensity = 1.0 + Math.sin(t * 2.2) * 0.4;
+      }
+    }
+  });
+
+  // Cyan strip pulse
+  const cPulse = 1.8 + Math.sin(t * 1.6 + 1) * 0.6;
+  neckGroup.children.forEach(child => {
+    if (child.isMesh && child.material.emissive && !child.userData.neckRing) {
+      child.material.emissiveIntensity = cPulse;
+    }
+  });
+  cLight.intensity = 0.6 + Math.sin(t * 1.8) * 0.3;
+
+  // Blink
+  blinkTimer += delta;
+  if (!isBlinking && blinkTimer > blinkInterval) {
+    isBlinking = true;
+    blinkDuration = 0;
+    blinkTimer = 0;
+    blinkInterval = 3 + Math.random() * 5;
+    blinkStatus.textContent = 'BLINK: ACTIVE';
+  }
+  if (isBlinking) {
+    blinkDuration += delta;
+    const blinkPhase = blinkDuration / 0.18;
+    let scaleY;
+    if (blinkPhase < 0.5) scaleY = 1 - blinkPhase * 2;
+    else scaleY = (blinkPhase - 0.5) * 2;
+    scaleY = Math.max(0.02, scaleY);
+    headGroup.traverse(obj => {
+      if (obj.isMesh && obj.userData.isEye) obj.scale.y = scaleY;
+    });
+    if (blinkDuration > 0.18) {
+      isBlinking = false;
+      headGroup.traverse(obj => {
+        if (obj.isMesh && obj.userData.isEye) obj.scale.y = 1;
+      });
+      blinkStatus.textContent = 'BLINK: READY';
+    }
+  }
+
+  // Particles
+  const pos = particles.geometry.attributes.position.array;
+  for (let i = 0; i < particleCount; i++) {
+    pos[i * 3] += pVelocities[i].vx;
+    pos[i * 3 + 1] += pVelocities[i].vy;
+    pos[i * 3 + 2] += pVelocities[i].vz;
+    if (pos[i * 3 + 1] > 5.5) pos[i * 3 + 1] = -2.5;
+    if (pos[i * 3 + 1] < -2.5) pos[i * 3 + 1] = 5.5;
+    const dx = pos[i * 3], dz = pos[i * 3 + 2] + 1;
+    if (Math.sqrt(dx * dx + dz * dz) > 5.5) {
+      const theta = Math.random() * Math.PI * 2;
+      const r = 1.8 + Math.random() * 2.5;
+      pos[i * 3] = Math.cos(theta) * r;
+      pos[i * 3 + 2] = Math.sin(theta) * r - 1;
+    }
+  }
+  particles.geometry.attributes.position.needsUpdate = true;
+  particles.rotation.y = t * 0.04;
+
+  // Scan ring expand
+  scanRadius += delta * 1.8;
+  if (scanRadius > 4.5) { scanRadius = 0; scanOpacity = 0.7; }
+  scanOpacity = Math.max(0, 0.7 * (1 - scanRadius / 4.5));
+  const newGeo = new THREE.RingGeometry(scanRadius * 0.92, scanRadius, 64);
+  scanRing.geometry.dispose();
+  scanRing.geometry = newGeo;
+  scanRing.material.opacity = scanOpacity;
+
+  // Particle opacity pulse
+  pMat.opacity = 0.4 + Math.sin(t * 1.3) * 0.15;
+
+  renderer.render(scene, camera);
+}
+
+animate();
+
+window.addEventListener('resize', () => {
+  const w = window.innerWidth, h = window.innerHeight;
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+});
+</script>
+</body>
+</html>

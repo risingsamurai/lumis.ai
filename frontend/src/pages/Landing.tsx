@@ -1,12 +1,12 @@
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
+import { useRef } from "react";
 
 import { useAuth } from "../hooks/useAuth";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { firebaseEnabled } from "../services/firebase";
-import { Plasma } from "../components/ui/Plasma";
 import { BiasAnalysisDashboard } from "../components/BiasAnalysisDashboard";
 
 // ─── Feature card data ────────────────────────────────────────────────────────
@@ -43,6 +43,17 @@ const fadeUp = {
 export default function Landing() {
   const navigate = useNavigate();
   const { signInWithGoogle, user } = useAuth();
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (iframeRef.current && iframeRef.current.contentWindow) {
+      iframeRef.current.contentWindow.postMessage({
+        type: 'mousemove',
+        x: e.clientX,
+        y: e.clientY
+      }, '*');
+    }
+  };
 
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-brand-bg text-white">
@@ -54,32 +65,34 @@ export default function Landing() {
       </div>
 
       {/* ── HERO SECTION ───────────────────────────────────────────────────── */}
-      <section className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-4 text-center">
-        {/* Plasma WebGL background – fills the entire hero section */}
+      <section 
+        className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-4 text-center"
+        onMouseMove={handleMouseMove}
+      >
+        {/* 3D Robot Background */}
         <div className="absolute inset-0 z-0">
-          <Plasma
-            color="#6C47FF"
-            speed={0.55}
-            direction="forward"
-            scale={1.15}
-            opacity={0.72}
-            mouseInteractive={true}
-          />
+          <iframe 
+            ref={iframeRef}
+            src="/robot.html" 
+            id="robot-iframe"
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              border: 'none',
+              pointerEvents: 'none',
+              background: 'transparent',
+              zIndex: 0
+            }}
+            allowTransparency={true}
+            scrolling="no">
+          </iframe>
           {/* Gradient overlay so text stays readable */}
           <div className="absolute inset-0 bg-gradient-to-b from-brand-bg/40 via-brand-bg/20 to-brand-bg" />
         </div>
 
-        {/* Live-badge */}
-        <motion.div
-          variants={fadeUp}
-          initial="hidden"
-          animate="show"
-          custom={0}
-          className="relative z-10 mb-6 inline-flex items-center gap-2 rounded-full border border-brand-secondary/40 bg-brand-secondary/10 px-4 py-1.5 text-xs font-medium text-brand-secondary backdrop-blur-sm"
-        >
-          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand-secondary" />
-          2.3 B people affected by biased AI annually
-        </motion.div>
 
         {/* Headline */}
         <motion.h1
@@ -87,13 +100,9 @@ export default function Landing() {
           initial="hidden"
           animate="show"
           custom={1}
-          className="relative z-10 max-w-4xl text-5xl font-bold leading-tight tracking-tight md:text-7xl"
+          className="relative z-10 mt-80 text-2xl font-bold tracking-[0.2em] text-white/90 drop-shadow-[0_0_10px_rgba(0,207,255,0.4)] md:text-3xl"
         >
-          Detect Bias.{" "}
-          <span className="bg-gradient-to-r from-brand-primary via-purple-400 to-brand-secondary bg-clip-text text-transparent">
-            Build Fairness.
-          </span>{" "}
-          Deploy With Confidence.
+          LUMIS
         </motion.h1>
 
         <motion.p
