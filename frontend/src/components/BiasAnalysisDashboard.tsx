@@ -14,74 +14,113 @@ export function BiasAnalysisDashboard() {
   // ── Step 1: Idle / Upload ──────────────────────────────────────────────────
   if (state.step === "idle") {
     return (
-      <div className="w-full max-w-4xl mx-auto px-4 py-8">
+      <div className="w-full max-w-6xl mx-auto px-4 py-8">
 
         {/* Header */}
-        <div className="text-center mb-10">
-          <div className="inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 
-                          rounded-full px-4 py-1.5 text-emerald-400 text-xs font-medium mb-4">
-            🌍 UN SDG 10 — Reduced Inequalities
-          </div>
-          <h1 className="text-3xl font-bold text-white mb-3">Detect Bias in Any AI Dataset</h1>
-          <p className="text-gray-400 max-w-xl mx-auto text-sm leading-relaxed">
-            Upload your CSV and we'll check if your AI model treats all groups fairly — 
-            across hiring, lending, healthcare, and more.
+        <div className="mb-16">
+          <p className="text-sm uppercase tracking-[0.22em] text-white/30">
+            Upload Custom Dataset
+          </p>
+
+          <h2 className="mt-6 text-4xl md:text-6xl font-light tracking-tight text-white">
+            Detect Bias in Any AI Dataset
+          </h2>
+
+          <p className="mt-4 max-w-2xl text-base leading-relaxed text-white/50">
+            Run fairness diagnostics across hiring, lending, healthcare, and
+            justice systems with production-grade explainability.
           </p>
         </div>
 
         {/* Demo Dataset Cards */}
-        <div className="mb-8">
-          <p className="text-gray-500 text-xs font-medium uppercase tracking-wider mb-3 text-center">
-            Try a demo dataset
-          </p>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {[
-              { id: "hiring",     icon: "👔", label: "Hiring Bias",       sub: "Gender in employment",   sdg: "SDG 10", color: "emerald" },
-              { id: "lending",    icon: "🏦", label: "Lending Bias",      sub: "Race in loan approval",  sdg: "SDG 10", color: "blue"    },
-              { id: "healthcare", icon: "🏥", label: "Healthcare",        sub: "Race in readmission",    sdg: "SDG 3",  color: "purple"  },
-              { id: "criminal",   icon: "⚖️", label: "Criminal Justice",  sub: "Race in risk scoring",   sdg: "SDG 16", color: "amber"   },
-            ].map(d => (
-              <motion.button
-                key={d.id}
-                whileHover={{ y: -2, scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => loadDemoDataset(d.id)}
-                className="bg-gray-800/60 border border-gray-700 hover:border-emerald-500/40 
-                           rounded-xl p-4 text-left transition-all duration-200 group"
-              >
-                <div className="text-2xl mb-2">{d.icon}</div>
-                <p className="text-white text-sm font-semibold">{d.label}</p>
-                <p className="text-gray-500 text-xs mt-0.5">{d.sub}</p>
-                <span className="inline-block mt-2 text-xs bg-gray-700/60 text-gray-400 
-                                 rounded-full px-2 py-0.5">{d.sdg}</span>
-              </motion.button>
-            ))}
-          </div>
+        <div className="grid gap-6 md:grid-cols-12 mb-10">
+          {[
+            {
+              id: "hiring",
+              index: "/01",
+              title: "Hiring Bias Audit",
+              desc: "Detect gender disparities in employment decisions.",
+            },
+            {
+              id: "lending",
+              index: "/02",
+              title: "Lending Risk Audit",
+              desc: "Audit credit approval fairness across demographics.",
+            },
+            {
+              id: "healthcare",
+              index: "/03",
+              title: "Healthcare Equity",
+              desc: "Measure fairness in patient readmission models.",
+            },
+            {
+              id: "criminal",
+              index: "/04",
+              title: "Justice Risk Audit",
+              desc: "Evaluate fairness in criminal risk scoring systems.",
+            },
+          ].map((d, i) => (
+            <motion.button
+              key={d.id}
+              whileHover={{ y: -4 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => loadDemoDataset(d.id)}
+              className={`border border-white/10 p-8 text-left transition-all duration-300 hover:border-white/30 hover:bg-white/[0.02] ${i === 0 ? "md:col-span-6" : "md:col-span-3"
+                } col-span-12`}
+            >
+              <p className="text-sm text-white/30">{d.index}</p>
+
+              <h3 className="mt-4 text-2xl font-medium tracking-tight text-white">
+                {d.title}
+              </h3>
+
+              <p className="mt-4 text-sm leading-relaxed text-white/40">
+                {d.desc}
+              </p>
+            </motion.button>
+          ))}
         </div>
 
         {/* Upload Zone */}
         <div
           onClick={() => fileInputRef.current?.click()}
-          onDragOver={e => e.preventDefault()}
-          onDrop={e => {
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => {
             e.preventDefault();
             const file = e.dataTransfer.files[0];
-            if (file && file.name.endsWith(".csv")) loadFile(file);
-            else toast.error("Please upload a CSV file");
+            if (file && file.name.endsWith(".csv")) {
+              loadFile(file);
+            } else {
+              toast.error("Please upload a CSV file");
+            }
           }}
-          className="border-2 border-dashed border-gray-700 hover:border-emerald-500/50 
-                     rounded-2xl p-12 text-center cursor-pointer transition-all duration-200
-                     hover:bg-emerald-500/3 group"
+          className="border border-dashed border-white/20 p-20 text-center cursor-pointer transition-all duration-300 hover:border-white/40"
         >
-          <div className="text-4xl mb-3">📂</div>
-          <p className="text-gray-300 font-medium">Drop your CSV here or click to upload</p>
-          <p className="text-gray-600 text-sm mt-1">Any CSV with labeled columns works</p>
+          <div className="flex flex-col items-center justify-center">
+            <div className="mb-8 text-6xl font-light text-white/20">⊕</div>
+
+            <h3 className="text-3xl font-light tracking-tight text-white">
+              Upload Dataset
+            </h3>
+
+            <p className="mt-4 max-w-lg text-base leading-relaxed text-white/40">
+              Drop CSV files to run production-grade fairness audits powered by
+              LUMIS.
+            </p>
+
+            <div className="mt-8 flex gap-6 text-xs uppercase tracking-[0.18em] text-white/20">
+              <span>CSV</span>
+              <span>Fairness</span>
+              <span>Explainability</span>
+            </div>
+          </div>
+
           <input
             ref={fileInputRef}
             type="file"
             accept=".csv"
             className="hidden"
-            onChange={e => {
+            onChange={(e) => {
               const file = e.target.files?.[0];
               if (file) loadFile(file);
             }}
@@ -184,13 +223,11 @@ export function BiasAnalysisDashboard() {
                   </label>
                   <button
                     onClick={() => setEnableSampling(!state.enableSampling)}
-                    className={`w-12 h-6 rounded-full transition-colors ${
-                      state.enableSampling ? 'bg-emerald-500' : 'bg-gray-600'
-                    }`}
+                    className={`w-12 h-6 rounded-full transition-colors ${state.enableSampling ? 'bg-emerald-500' : 'bg-gray-600'
+                      }`}
                   >
-                    <div className={`w-5 h-5 bg-white rounded-full transition-transform ${
-                      state.enableSampling ? 'translate-x-6' : 'translate-x-0.5'
-                    }`} />
+                    <div className={`w-5 h-5 bg-white rounded-full transition-transform ${state.enableSampling ? 'translate-x-6' : 'translate-x-0.5'
+                      }`} />
                   </button>
                 </div>
                 <p className="text-gray-400 text-xs">
@@ -286,8 +323,8 @@ function BiasReport({
 
   const handleDownloadDataset = () => {
     console.log("Downloading data:", mitigation);
-    const csvData = mitigation?.mitigated_dataset_csv || 
-                    (mitigation?.mitigated_dataset_base64 ? atob(mitigation.mitigated_dataset_base64) : null);
+    const csvData = mitigation?.mitigated_dataset_csv ||
+      (mitigation?.mitigated_dataset_base64 ? atob(mitigation.mitigated_dataset_base64) : null);
 
     if (!csvData) {
       console.error("❌ Still no data! Payload received:", mitigation);
@@ -328,11 +365,11 @@ function BiasReport({
     regenerateExplanation();
   }
   const LEVEL_CONFIG = {
-    none:     { color: "emerald", bg: "bg-emerald-500/10", border: "border-emerald-500/30", text: "text-emerald-400", label: "No Bias Detected",    emoji: "✅" },
-    low:      { color: "blue",    bg: "bg-blue-500/10",    border: "border-blue-500/30",    text: "text-blue-400",    label: "Low Bias",             emoji: "🟡" },
-    moderate: { color: "amber",   bg: "bg-amber-500/10",   border: "border-amber-500/30",   text: "text-amber-400",   label: "Moderate Bias",        emoji: "⚠️" },
-    high:     { color: "orange",  bg: "bg-orange-500/10",  border: "border-orange-500/30",  text: "text-orange-400",  label: "High Bias Detected",   emoji: "🔴" },
-    critical: { color: "red",     bg: "bg-red-500/10",     border: "border-red-500/30",     text: "text-red-400",     label: "Critical Bias",        emoji: "🚨" },
+    none: { color: "emerald", bg: "bg-emerald-500/10", border: "border-emerald-500/30", text: "text-emerald-400", label: "No Bias Detected", emoji: "✅" },
+    low: { color: "blue", bg: "bg-blue-500/10", border: "border-blue-500/30", text: "text-blue-400", label: "Low Bias", emoji: "🟡" },
+    moderate: { color: "amber", bg: "bg-amber-500/10", border: "border-amber-500/30", text: "text-amber-400", label: "Moderate Bias", emoji: "⚠️" },
+    high: { color: "orange", bg: "bg-orange-500/10", border: "border-orange-500/30", text: "text-orange-400", label: "High Bias Detected", emoji: "🔴" },
+    critical: { color: "red", bg: "bg-red-500/10", border: "border-red-500/30", text: "text-red-400", label: "Critical Bias", emoji: "🚨" },
   };
 
   const cfg = LEVEL_CONFIG[result.biasLevel];
@@ -378,8 +415,8 @@ function BiasReport({
         </button>
         <div className="flex items-center gap-4">
           <div className="text-gray-600 text-xs">
-            {result.numRows} rows · {result.numColumns} columns · 
-            Predicting: <span className="text-gray-400">{result.targetColumn}</span> · 
+            {result.numRows} rows · {result.numColumns} columns ·
+            Predicting: <span className="text-gray-400">{result.targetColumn}</span> ·
             Protected: <span className="text-gray-400">{result.sensitiveAttribute}</span>
           </div>
           <button
@@ -423,11 +460,10 @@ function BiasReport({
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.08 }}
-            className={`rounded-xl border p-4 ${
-              m.pass
+            className={`rounded-xl border p-4 ${m.pass
                 ? "bg-emerald-950/30 border-emerald-800/30"
                 : "bg-red-950/30 border-red-800/30"
-            }`}
+              }`}
           >
             <div className="flex items-center justify-between mb-2">
               <span className="text-gray-400 text-xs">{m.label}</span>
@@ -449,14 +485,13 @@ function BiasReport({
         <div className="grid grid-cols-3 gap-3">
           {[
             { name: "EU AI Act", sub: "Article 10 — bias audit", pass: result.compliance.euAiAct },
-            { name: "US EEOC",   sub: "4/5ths disparate impact rule", pass: result.compliance.eeoc },
-            { name: "GDPR",      sub: "Article 22 — explainability", pass: result.compliance.gdpr },
+            { name: "US EEOC", sub: "4/5ths disparate impact rule", pass: result.compliance.eeoc },
+            { name: "GDPR", sub: "Article 22 — explainability", pass: result.compliance.gdpr },
           ].map(c => (
-            <div key={c.name} className={`rounded-xl p-3 border ${
-              c.pass
+            <div key={c.name} className={`rounded-xl p-3 border ${c.pass
                 ? "bg-emerald-950/30 border-emerald-800/30"
                 : "bg-red-950/30 border-red-800/30"
-            }`}>
+              }`}>
               <div className="flex items-center gap-2 mb-1">
                 <span>{c.pass ? "✅" : "❌"}</span>
                 <span className="text-white text-sm font-medium">{c.name}</span>
@@ -563,10 +598,10 @@ function BiasReport({
               <h3 className="text-white font-semibold text-sm">How Reweighing Works</h3>
             </div>
             <p className="text-gray-400 text-xs leading-relaxed">
-              Reweighing assigns higher weights to underrepresented groups who received positive outcomes, 
-              and lower weights to overrepresented groups. This balances the training data so the model 
-              learns to make fairer predictions without changing the underlying algorithm. The weights 
-              are applied during model training, effectively giving more importance to examples that 
+              Reweighing assigns higher weights to underrepresented groups who received positive outcomes,
+              and lower weights to overrepresented groups. This balances the training data so the model
+              learns to make fairer predictions without changing the underlying algorithm. The weights
+              are applied during model training, effectively giving more importance to examples that
               would otherwise be overlooked.
             </p>
           </div>
@@ -578,9 +613,9 @@ function BiasReport({
             </h3>
             <div className="grid grid-cols-3 gap-4">
               {[
-                { label: "Fairness Score",   before: mitigation.before.fairnessScore,   after: mitigation.after.fairnessScore,   suffix: "/100", higherBetter: true },
-                { label: "Disparate Impact", before: mitigation.before.disparateImpact, after: mitigation.after.disparateImpact, suffix: "",     higherBetter: true },
-                { label: "Stat. Parity",     before: Math.abs(mitigation.before.statisticalParity), after: Math.abs(mitigation.after.statisticalParity), suffix: "", higherBetter: false },
+                { label: "Fairness Score", before: mitigation.before.fairnessScore, after: mitigation.after.fairnessScore, suffix: "/100", higherBetter: true },
+                { label: "Disparate Impact", before: mitigation.before.disparateImpact, after: mitigation.after.disparateImpact, suffix: "", higherBetter: true },
+                { label: "Stat. Parity", before: Math.abs(mitigation.before.statisticalParity), after: Math.abs(mitigation.after.statisticalParity), suffix: "", higherBetter: false },
               ].map(m => {
                 const improved = m.higherBetter ? m.after > m.before : m.after < m.before;
                 return (
@@ -606,9 +641,9 @@ function BiasReport({
               </span>
               <span className="text-gray-500 text-xs ml-2">in overall fairness score</span>
             </div>
-            
+
             <div className="mt-8 flex flex-col items-center gap-4">
-              <button 
+              <button
                 onClick={handleDownloadDataset}
                 className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded-full transition-all hover:scale-105 shadow-xl"
               >
@@ -674,7 +709,7 @@ function BiasReport({
         </>
       )}
 
-    {/* Settings Modal */}
+      {/* Settings Modal */}
       <AnimatePresence>
         {showSettings && (
           <motion.div
@@ -698,7 +733,7 @@ function BiasReport({
                   ✕
                 </button>
               </div>
-              
+
               <div className="space-y-3 text-sm text-gray-400">
                 <div className="flex justify-between">
                   <span>Target Column:</span>

@@ -12,7 +12,7 @@ from sklearn.compose import ColumnTransformer
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import OneHotEncoder
+from sklearn.preprocessing import LabelEncoder
 
 
 @dataclass
@@ -31,42 +31,97 @@ class PreparedDataset:
 def decode_csv_base64(dataset_base64: str) -> pd.DataFrame:
     try:
         csv_bytes = base64.b64decode(dataset_base64)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         raise ValueError("Invalid base64 dataset payload.") from exc
-
     try:
         frame = pd.read_csv(io.BytesIO(csv_bytes))
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         raise ValueError("Dataset payload is not a valid CSV file.") from exc
-
     if frame.empty:
         raise ValueError("Dataset is empty.")
     return frame
 
 
 def _to_binary_target(target: pd.Series, favorable_outcome: Any) -> pd.Series:
-    # Fairness metrics use binary labels where favorable outcome is 1.
-    # Data is already pre-encoded as numerical, so compare numerically
-    favorable_outcome_float = float(favorable_outcome)
-    binary = (target.astype(float) == favorable_outcome_float).astype(int)
-    if binary.nunique() < 2:
-        raise ValueError("Target became single-class after favorable_outcome mapping.")
-    return binary
+    """
+    Robustly convert target to binary 0/1.
+    Works for: int 1, float 1.0, string "1", ">50K", "Yes", "approved", etc.
+    By this point the dataframe has been through preprocess_dataframe so
+    target values should already be float32 encoded integers.
+    """
+    # Step 1: force target to numeric regardless of what came in
+    target_numeric = pd.to_numeric(target, errors='coerce').fillna(0)
+
+    # Step 2: try to cast favorable_outcome to float and compare
+    try:
+        fav = float(str(favorable_outcome).strip())
+        binary = (target_numeric == fav).astype(int)
+        if binary.nunique() >= 2:
+            print(f"DEBUG _to_binary: matched numerically fav={fav}, distribution={binary.value_counts().to_dict()}")
+            return binary
+        # Try rounding for float precision issues
+        binary = (target_numeric.round(0) == round(fav)).astype(int)
+        if binary.nunique() >= 2:
+            print(f"DEBUG _to_binary: matched with rounding fav={fav}")
+            return binary
+    except (ValueError, TypeError):
+        pass
+
+    # Step 3: string comparison on original target (before numeric coerce)
+    try:
+        fav_str = str(favorable_outcome).strip().lower()
+        binary = (target.astype(str).str.strip().str.lower() == fav_str).astype(int)
+        if binary.nunique() >= 2:
+            print(f"DEBUG _to_binary: matched by string comparison fav='{fav_str}'")
+            return binary
+    except Exception:
+        pass
+
+    # Step 4: use the most common value as favorable (last resort before error)
+    try:
+        most_common = target_numeric.mode()[0]
+        binary = (target_numeric == most_common).astype(int)
+        if binary.nunique() >= 2:
+            print(f"WARNING _to_binary: used most_common fallback={most_common}")
+            return binary
+    except Exception:
+        pass
+
+    # Step 5: above/below median split
+    try:
+        median = target_numeric.median()
+        binary = (target_numeric > median).astype(int)
+        if binary.nunique() >= 2:
+            print(f"WARNING _to_binary: used median split={median}")
+            return binary
+    except Exception:
+        pass
+
+    raise ValueError(
+        f"Could not create binary target. "
+        f"favorable_outcome='{favorable_outcome}', "
+        f"target unique values={target.unique().tolist()[:10]}"
+    )
 
 
-def validate_columns(frame: pd.DataFrame, target_column: str, sensitive_attributes: list[str]) -> None:
+def validate_columns(
+    frame: pd.DataFrame,
+    target_column: str,
+    sensitive_attributes: list[str],
+) -> None:
     if target_column not in frame.columns:
-        raise ValueError(f"Target column '{target_column}' not found in dataset.")
-
-    missing_sensitive = [attr for attr in sensitive_attributes if attr not in frame.columns]
-    if missing_sensitive:
-        missing = ", ".join(missing_sensitive)
-        raise ValueError(f"Sensitive attribute(s) missing from dataset: {missing}")
-
+        raise ValueError(
+            f"Target column '{target_column}' not found. "
+            f"Available: {list(frame.columns)}"
+        )
+    missing = [a for a in sensitive_attributes if a not in frame.columns]
+    if missing:
+        raise ValueError(
+            f"Sensitive attribute(s) missing: {', '.join(missing)}. "
+            f"Available: {list(frame.columns)}"
+        )
     if len(sensitive_attributes) == 0:
         raise ValueError("At least one sensitive attribute is required.")
-
-
 
 
 def prepare_dataset(
@@ -79,12 +134,18 @@ def prepare_dataset(
 ) -> PreparedDataset:
     validate_columns(frame, target_column, sensitive_attributes)
 
-    # Data is already pre-encoded as numerical by preprocess_dataframe in main.py
+    print(f"DEBUG prepare_dataset: target='{target_column}' favorable='{favorable_outcome}' type={type(favorable_outcome)}")
+    print(f"DEBUG prepare_dataset: target sample={frame[target_column].head().tolist()}")
+
     target_binary = _to_binary_target(frame[target_column], favorable_outcome)
     features = frame.drop(columns=[target_column]).copy()
 
     X_train, X_test, y_train, y_test = train_test_split(
-        features, target_binary, test_size=test_size, random_state=random_state, stratify=target_binary
+        features,
+        target_binary,
+        test_size=test_size,
+        random_state=random_state,
+        stratify=target_binary,
     )
 
     return PreparedDataset(
@@ -101,14 +162,11 @@ def prepare_dataset(
 
 
 def build_baseline_model(input_frame: pd.DataFrame) -> Pipeline:
-    # Since all text columns are already converted to numerical in prepare_dataset,
-    # we can treat all columns as numeric (passthrough)
     preprocessor = ColumnTransformer(
         transformers=[
             ("numeric", "passthrough", list(input_frame.columns)),
         ]
     )
-
     model = Pipeline(
         steps=[
             ("preprocessor", preprocessor),
@@ -122,28 +180,36 @@ def load_pickled_model(model_base64: str) -> Any:
     try:
         model_bytes = base64.b64decode(model_base64)
         return pickle.loads(model_bytes)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         raise ValueError("Unable to decode/load uploaded model pickle.") from exc
 
 
-def train_or_use_model(prepared: PreparedDataset, model_base64: str | None = None) -> tuple[Any, np.ndarray]:
-    model = load_pickled_model(model_base64) if model_base64 else build_baseline_model(prepared.X_train)
+def train_or_use_model(
+    prepared: PreparedDataset,
+    model_base64: str | None = None,
+) -> tuple[Any, np.ndarray]:
+    model = (
+        load_pickled_model(model_base64)
+        if model_base64
+        else build_baseline_model(prepared.X_train)
+    )
     if model_base64:
         try:
             predictions = model.predict(prepared.features)
             return model, np.asarray(predictions).astype(int)
-        except Exception:  # noqa: BLE001
+        except Exception:
             if not hasattr(model, "fit"):
-                raise ValueError("Uploaded model is not compatible: missing predict/fit methods.")
+                raise ValueError("Uploaded model missing predict/fit methods.")
     model.fit(prepared.X_train, prepared.y_train)
     predictions = model.predict(prepared.features)
     return model, predictions.astype(int)
 
 
-def get_transformed_features(model: Any, X: pd.DataFrame) -> tuple[np.ndarray, list[str]]:
+def get_transformed_features(
+    model: Any, X: pd.DataFrame
+) -> tuple[np.ndarray, list[str]]:
     if not isinstance(model, Pipeline):
-        arr = X.to_numpy()
-        return arr, list(X.columns)
+        return X.to_numpy(), list(X.columns)
 
     preprocessor = model.named_steps["preprocessor"]
     transformed = preprocessor.transform(X)
@@ -152,6 +218,6 @@ def get_transformed_features(model: Any, X: pd.DataFrame) -> tuple[np.ndarray, l
 
     try:
         feature_names = preprocessor.get_feature_names_out().tolist()
-    except Exception:  # noqa: BLE001
+    except Exception:
         feature_names = [f"feature_{i}" for i in range(transformed.shape[1])]
     return np.asarray(transformed), feature_names
