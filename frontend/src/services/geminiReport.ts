@@ -42,14 +42,7 @@ function generateLocalAuditNarrative(input: BiasReportInput): string {
   const { fairnessScore, protectedAttribute, disparateImpact, statisticalParity, topFeatures } = input;
   const di = disparateImpact ?? 1;
   const sp = Math.abs(statisticalParity ?? 0);
-  const disparity = Math.round((1 - di) * 100);
   const attr = protectedAttribute || "the protected attribute";
-
-  const level =
-    fairnessScore >= 85 ? "minimal" :
-      fairnessScore >= 70 ? "low" :
-        fairnessScore >= 55 ? "moderate" :
-          fairnessScore >= 35 ? "significant" : "critical";
 
   const scoreVerdict =
     fairnessScore >= 85 ? "This model treats all groups fairly." :
