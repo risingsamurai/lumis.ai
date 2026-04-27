@@ -1,64 +1,98 @@
-# LUMIS.AI — AI Fairness & Bias Audit Platform
+<div align="center">
 
-LUMIS.AI helps teams **detect, measure, explain, and mitigate** unfairness in tabular datasets and model decisions before those systems affect real people. It combines a **React** dashboard with a **FastAPI** ML service that uses **IBM AIF360** for fairness metrics, **SHAP** for explainability, and optional **Google Gemini** for an AI copilot experience.
+# LUMIS.AI
+
+### AI Fairness & Bias Audit Platform
+
+**Detect. Explain. Mitigate. Deploy with confidence.**
+
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.110-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![React](https://img.shields.io/badge/React-18-61DAFB?style=flat-square&logo=react&logoColor=black)](https://react.dev)
+[![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)](https://python.org)
+[![Firebase](https://img.shields.io/badge/Firebase-ready-FFCA28?style=flat-square&logo=firebase&logoColor=black)](https://firebase.google.com)
+[![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
+
+[**Live Demo**](#demo-flow) · [**Quick Start**](#setup) · [**API Docs**](#api-reference) · [**Report a Bug**](issues)
+
+</div>
 
 ---
 
-## Problem it solves
+## Overview
 
-Machine learning systems can reproduce or amplify historical bias across hiring, lending, healthcare, and public services. LUMIS.AI provides a structured audit workflow: upload data (or use demo data), run statistical fairness checks, see which features drive outcomes, compare mitigation strategies, and iterate with clear before/after metrics.
+Machine learning systems routinely reproduce and amplify historical bias — silently shaping decisions in hiring, lending, healthcare, and public services. Most teams discover this problem too late, if at all.
+
+**LUMIS.AI** gives you a structured, repeatable audit workflow:
+
+1. Upload your dataset (or use built-in demo data)
+2. Run statistical fairness checks powered by IBM AIF360
+3. Visualize which features drive biased outcomes via SHAP
+4. Compare mitigation strategies side-by-side
+5. Iterate with clear before/after metrics before deployment
+
+All wrapped in a clean React dashboard with an optional AI Copilot powered by Google Gemini.
 
 ---
 
 ## Features
 
-| Area | What you get |
-|------|----------------|
-| **Bias detection** | Statistical parity, equal opportunity, disparate impact (AIF360) |
-| **Bias mitigation** | Reweighing preprocessing + retrain with instance weights |
-| **Explainability** | SHAP-based top feature impacts |
-| **AI Copilot** | Context-aware prompts (Gemini) with quick actions |
-| **Demo mode** | One-click hiring demo: loads CSV → calls `/analyze` → dashboard |
-| **Firebase-ready** | Auth, Firestore, Storage rules scaffold (configure `.env`) |
+| Area | What You Get |
+|------|-------------|
+| **Bias Detection** | Statistical parity, equal opportunity, and disparate impact via AIF360 |
+| **Bias Mitigation** | Reweighing preprocessing + retrain with instance weights |
+| **Explainability** | SHAP-based top feature impact breakdown |
+| **AI Copilot** | Context-aware Gemini prompts with quick-action suggestions |
+| **Demo Mode** | One-click hiring demo — loads CSV → calls `/analyze` → full dashboard |
+| **Firebase-Ready** | Auth, Firestore, and Storage rules scaffold included |
 
 ---
 
-## Repository layout
+## Tech Stack
 
-```
-├── frontend/                 # React + Vite + TypeScript + Tailwind
-│   ├── src/
-│   │   ├── services/api.ts   # FastAPI client (analyze + mitigate)
-│   │   └── store/auditStore.ts
-│   └── public/demo-datasets/ # Demo CSVs (including hiring_biased.csv)
-├── ml-backend/               # FastAPI + AIF360 + scikit-learn + SHAP
-│   ├── main.py
-│   └── services/
-├── functions/                # Firebase Cloud Functions (optional)
-├── firebase.json             # Hosting points to frontend/dist
-└── firestore.rules / storage.rules
-```
-
----
-
-## Demo flow (recruiters / judges)
-
-1. **Start the ML backend** (see below) on port `8081` (default in `.env.example`).
-2. **Start the frontend** (`cd frontend && pnpm install && pnpm dev`).
-3. Open the app → click **Try Demo** (or **Try Demo (Auto Analyze)** on New Audit).
-4. The app loads `public/demo-datasets/hiring_biased.csv`, calls **`POST /analyze`**, stores results, and navigates to the **Dashboard**.
-5. Open **Audit Report** for charts, SHAP-style top features, mitigation button, and **AI Copilot** with structured context.
-
----
-
-## Tech stack
-
-| Layer | Stack |
-|--------|--------|
+| Layer | Technologies |
+|-------|-------------|
 | **Frontend** | React 18, TypeScript, Vite, Tailwind CSS, Framer Motion, Zustand, Recharts, React Router |
 | **Backend** | FastAPI, Uvicorn |
-| **ML** | pandas, NumPy, scikit-learn, AIF360, SHAP |
-| **Infra** | Firebase (Auth, Firestore, Storage, Hosting), Cloud Run–ready Docker for `ml-backend` |
+| **ML / AI** | pandas, NumPy, scikit-learn, AIF360, SHAP, Google Gemini (optional) |
+| **Infrastructure** | Firebase (Auth, Firestore, Storage, Hosting), Cloud Run–ready Docker |
+
+---
+
+## Project Structure
+
+```
+lumis-ai/
+├── frontend/                       # React + Vite + TypeScript + Tailwind
+│   ├── src/
+│   │   ├── services/api.ts          # FastAPI client (analyze + mitigate)
+│   │   └── store/auditStore.ts      # Zustand global state
+│   └── public/demo-datasets/        # Demo CSVs (hiring_biased.csv, etc.)
+│
+├── ml-backend/                     # FastAPI + AIF360 + scikit-learn + SHAP
+│   ├── main.py                      # App entrypoint + route definitions
+│   └── services/                    # Fairness, mitigation, SHAP modules
+│
+├── functions/                      # Firebase Cloud Functions (optional)
+├── firebase.json                   # Hosting → frontend/dist
+├── firestore.rules
+└── storage.rules
+```
+
+---
+
+## Demo Flow
+
+> For judges and recruiters — get from zero to results in under 2 minutes.
+
+1. Start the ML backend on port `8081` (see [Setup](#setup) below).
+2. Start the frontend dev server.
+3. Open the app and click **Try Demo** (or **Try Demo — Auto Analyze** on the New Audit screen).
+4. The app loads `hiring_biased.csv`, calls `POST /analyze`, stores the results, and navigates directly to the Dashboard.
+5. From the Audit Report you'll see:
+   - Fairness metric charts (statistical parity, disparate impact, equal opportunity)
+   - SHAP-style top features driving biased outcomes
+   - A **Mitigate** button to run reweighing and compare before/after
+   - The AI Copilot panel with structured context and quick actions
 
 ---
 
@@ -66,69 +100,134 @@ Machine learning systems can reproduce or amplify historical bias across hiring,
 
 ### Prerequisites
 
-- **Node.js 20+** and **pnpm** (or npm) for the frontend  
-- **Python 3.11+** recommended for `ml-backend`
+- **Node.js** 20+ with [pnpm](https://pnpm.io) (or npm)
+- **Python** 3.11+ for the ML backend
 
-### 1. ML backend
+---
+
+### 1 · ML Backend
 
 ```bash
 cd ml-backend
-python -m pip install -r requirements.txt
-python -m uvicorn main:app --host 127.0.0.1 --port 8081
+pip install -r requirements.txt
+uvicorn main:app --host 127.0.0.1 --port 8081
 ```
 
-Health check: `GET http://127.0.0.1:8081/health` → `{"status":"ok"}`
-
-**Analyze** (`POST /analyze`): returns `summary`, `metrics`, `top_features`, `recommendations`, plus `attribute_metrics` and `explanation`.
-
-**Mitigate** (`POST /mitigate`): returns `before` / `after` summaries and metrics.
-
-Quick validation:
+Verify it's running:
 
 ```bash
-cd ml-backend
+curl http://127.0.0.1:8081/health
+# → {"status":"ok"}
+```
+
+Run the quick validation suite:
+
+```bash
 python sample_test.py
 ```
 
-### 2. Frontend
+---
+
+### 2 · Frontend
 
 ```bash
 cd frontend
 pnpm install
 cp .env.example .env
-# Set VITE_ANALYZER_BASE_URL=http://127.0.0.1:8081 (and optional Firebase / Gemini keys)
+```
+
+Open `.env` and set at minimum:
+
+```env
+VITE_ANALYZER_BASE_URL=http://127.0.0.1:8081
+# Optional — add Firebase + Gemini keys for full feature set
+```
+
+Start the dev server:
+
+```bash
 pnpm dev
 ```
 
-Production build:
+Build for production:
 
 ```bash
-cd frontend
 pnpm run build
+# Output → frontend/dist/  (consumed by Firebase Hosting)
 ```
-
-Output is written to **`frontend/dist/`** (used by Firebase Hosting via `firebase.json`).
-
-### 3. Firebase (optional)
-
-1. Create a Firebase project and enable Auth, Firestore, Storage.  
-2. Copy web app config into `frontend/.env`.  
-3. Deploy: `firebase deploy` (from repo root, after `frontend` build).
 
 ---
 
-## Screenshots
+### 3 · Firebase (Optional)
 
-_Add screenshots here for: Landing, Dashboard with bias score, Audit report with metrics and copilot._
+1. Create a Firebase project and enable **Auth**, **Firestore**, and **Storage**.
+2. Copy the web app config values into `frontend/.env`.
+3. Build the frontend, then deploy everything from the repo root:
+
+```bash
+firebase deploy
+```
+
+---
+
+## API Reference
+
+### `POST /analyze`
+
+Runs full fairness analysis on an uploaded dataset.
+
+**Returns:** `summary`, `metrics`, `top_features`, `recommendations`, `attribute_metrics`, `explanation`
+
+---
+
+### `POST /mitigate`
+
+Applies reweighing mitigation and retrains the model.
+
+**Returns:** `before` and `after` summaries + metrics for direct comparison
+
+---
+
+### `GET /health`
+
+```json
+{ "status": "ok" }
+```
+
+---
+
+## Roadmap
+
+- [ ] Support for additional AIF360 mitigation algorithms (Equalized Odds, Prejudice Remover)
+- [ ] Model upload support (`.pkl`, `.joblib`) alongside datasets
+- [ ] Multi-attribute intersectional bias analysis
+- [ ] PDF audit report export
+- [ ] Scheduled re-audit with drift detection alerts
+- [ ] LLM bias detection module
+
+---
+
+## Contributing
+
+Pull requests are welcome. For major changes, please open an issue first to discuss what you'd like to change.
+
+1. Fork the repository
+2. Create your branch: `git checkout -b feature/your-feature`
+3. Commit your changes: `git commit -m 'feat: add your feature'`
+4. Push to the branch: `git push origin feature/your-feature`
+5. Open a Pull Request
 
 ---
 
 ## License
 
-See [LICENSE](./LICENSE) (MIT).
+This project is licensed under the [MIT License](LICENSE).
 
 ---
 
-## Version
+<div align="center">
 
-**v1.0.0** — First demo-ready release with full ML + frontend integration. See git tag `v1.0.0`.
+Built with ❤️ by **Wagner Sentinel AI**  
+*Making AI fair, one audit at a time.*
+
+</div>
